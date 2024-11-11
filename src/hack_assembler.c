@@ -10,44 +10,15 @@
 void usage(char *program);
 void update_labels(FILE *fp);
 void error(char *type, char *message, ...);
+void parse_options(int argc, char **argv, bool *force, char **source_filename, char **output_filename);
 enum instruction { NONE, LABEL, SLASH_ONE, SLASH_TWO, A_INSTRUCT };
 
 int main(int argc, char **argv) {
-  // Options
-  bool force = false;
-  char *source_filename = NULL;
-  char *output_filename = NULL;
+  bool force;
+  char *source_filename;
+  char *output_filename;
 
-  // Options that our compiler takes
-  struct option long_options[] = {{"force", no_argument, 0, 'f'},
-                                  {"input", required_argument, 0, 'i'},
-                                  {"output", required_argument, 0, 'o'},
-                                  {0, 0, 0, 0}};
-
-  // Get options
-  int opt;
-  while ((opt = getopt_long(argc, argv, "fi:o:", long_options, NULL)) != -1) {
-    switch (opt) {
-    case 'f':
-      force = 1;
-      break;
-    case 'i':
-      source_filename = optarg;
-      break;
-    case 'o':
-      output_filename = optarg;
-      break;
-    case '?':
-      usage(argv[0]);
-      exit(EXIT_FAILURE);
-    }
-  }
-
-  // Source filename is required
-  if (source_filename == NULL) {
-    usage(argv[0]);
-    exit(EXIT_FAILURE);
-  }
+  parse_options(argc, argv, &force, &source_filename, &output_filename);
 
   // Try to open source file
   FILE *assembly;
@@ -144,6 +115,46 @@ void usage(char *program) {
   printf("USAGE: %s foo.asm foo.hack\n", program);
   printf("Creates a file named foo.hack that can be "
          "executed on the Hack computer.\n");
+}
+
+// Parse options from cmd line args and update force, source_filename and output_filename accordingly
+void parse_options(int argc, char **argv, bool *force, char **source_filename, char **output_filename) {
+    *force = false;
+    *source_filename = NULL;
+    *output_filename = NULL;
+
+    // Options that our compiler takes
+    struct option long_options[] = {
+        {"force", no_argument, 0, 'f'},
+        {"input", required_argument, 0, 'i'},
+        {"output", required_argument, 0, 'o'},
+        {0, 0, 0, 0}
+    };
+
+    // Get options
+    int opt;
+    while ((opt = getopt_long(argc, argv, "fi:o:", long_options, NULL)) != -1) {
+        switch (opt) {
+            case 'f':
+                *force = true;
+                break;
+            case 'i':
+                *source_filename = optarg;
+                break;
+            case 'o':
+                *output_filename = optarg;
+                break;
+            case '?':
+                usage(argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    // Source filename is required
+    if (*source_filename == NULL) {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
 }
 
 // Take a file as input and add labels to the symbol table if missing
