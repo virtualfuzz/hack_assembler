@@ -11,12 +11,13 @@ void usage(char *program);
 void update_labels(FILE *fp);
 void error(char *type, char *message, ...);
 void parse_options(int argc, char **argv, bool *force, char **source_filename, char **output_filename);
+void open_compiled_file(const char *source_filename, char **output_filename, const bool force, FILE **write_to);
 enum instruction { NONE, LABEL, SLASH_ONE, SLASH_TWO, A_INSTRUCT };
 
 int main(int argc, char **argv) {
-  bool force;
-  char *source_filename;
-  char *output_filename;
+  bool force = false;
+  char *source_filename = NULL;
+  char *output_filename = NULL;
 
   parse_options(argc, argv, &force, &source_filename, &output_filename);
 
@@ -27,66 +28,9 @@ int main(int argc, char **argv) {
     error("FILE", "\"%s\" doesn't exist\n", source_filename);
   }
 
-  // Name of the hack save file
-  char *hack_save_file;
-
-  // If we gave the name of the hack file set it as that
-  // Else create the file name using the filename of source file
-  if (output_filename) {
-    hack_save_file = output_filename;
-  } else {
-    // Copy into a new string source filename
-    // Reason: We used to set hack_save_file to source but it will modify source
-    // too
-    size_t length = strlen(source_filename);
-    size_t allocation_size = length + 2;
-
-    hack_save_file = (char *)malloc(allocation_size); // FIXME: Free me
-    if (hack_save_file == NULL) {
-      error("MEMORY ",
-            "Failed to allocate %zu bytes for hack_save_file string\n",
-            allocation_size);
-    }
-
-    hack_save_file = strcpy(hack_save_file, source_filename);
-
-    // Remove .asm from the end of the file if it exists
-    if (4 < length) {
-
-      // Get last 4 characters of hack_save_file (first arg, asm filename)
-      char to_compare[5];
-      strncpy(to_compare, hack_save_file + length - 4, 4);
-
-      if (strcmp(to_compare, ".asm") == 0) {
-        // Remove the last 4 characters (.asm)
-        hack_save_file[length - 4] = '\0';
-      }
-    }
-
-    // Add .hack to the filename
-    strcat(hack_save_file, ".hack");
-  }
-
-  // Check if file exists to prevent overwriting
-  // TODO: but what if the file is auto created?
-  if (access(hack_save_file, F_OK) != -1) {
-    if (force == true) {
-      printf("empty file or some shit like that\n");
-      printf("we didnt finish this shit\n");
-      exit(EXIT_FAILURE);
-    } else {
-      error("FILE ", "%s already exists, use the --force flag to overwrite file\n", hack_save_file);
-    }
-  }
-
-  // Create compiled code file
+  // Update write_to variable and set it to the pointer of the file where we are going to compile
   FILE *write_to;
-  write_to = fopen(hack_save_file, "w");
-  if (write_to == NULL) {
-    error("FILE ",
-          "Failed to create file %s maybe a directory doesn't exist...",
-          hack_save_file);
-  }
+  open_compiled_file(source_filename, &output_filename, force, &write_to);
 
   // First pass: Only update the symbol table
   update_labels(assembly);
@@ -117,12 +61,64 @@ void usage(char *program) {
          "executed on the Hack computer.\n");
 }
 
+void open_compiled_file(const char *source_filename, char **output_filename, const bool force, FILE **write_to) {
+  if (output_filename == NULL) {
+    // Copy into a new string source filename
+    // Reason: We used to output_filename = source_filename
+    // but it will modify source too
+    size_t length = strlen(source_filename);
+    size_t allocation_size = length + 2;
+
+    *output_filename = (char *)malloc(allocation_size);
+    if (*output_filename == NULL) {
+      error("MEMORY ",
+            "Failed to allocate %zu bytes for hack_save_file string\n",
+            allocation_size);
+    }
+
+    *output_filename = strcpy(*output_filename, source_filename);
+
+    // Remove .asm from the end of the file if it exists
+    if (4 < length) {
+
+      // Get last 4 characters of hack_save_file (first arg, asm filename)
+      char to_compare[5];
+      strncpy(to_compare, *output_filename + length - 4, 4);
+
+      if (strcmp(to_compare, ".asm") == 0) {
+        // Remove the last 4 characters (.asm)
+        *output_filename[length - 4] = '\0';
+      }
+    }
+
+    // Add .hack to the filename
+    strcat(*output_filename, ".hack");
+  }
+
+  // Check if file exists to prevent overwriting
+  // TODO: FINISH THAT
+  if (access(*output_filename, F_OK) != -1) {
+    if (force == true) {
+      // open file
+      printf("empty file or some shit like that\n");
+      printf("we didnt finish this shit\n");
+      //exit(EXIT_FAILURE);
+    } else {
+      error("FILE ", "%s already exists, use the --force flag to overwrite file\n", *output_filename);
+    }
+  }
+
+  // Create compiled code file
+  *write_to = fopen(*output_filename, "w");
+  if (*write_to == NULL) {
+    error("FILE ",
+          "Failed to create file %s maybe a directory doesn't exist...",
+          *output_filename);
+  }
+}
+
 // Parse options from cmd line args and update force, source_filename and output_filename accordingly
 void parse_options(int argc, char **argv, bool *force, char **source_filename, char **output_filename) {
-    *force = false;
-    *source_filename = NULL;
-    *output_filename = NULL;
-
     // Options that our compiler takes
     struct option long_options[] = {
         {"force", no_argument, 0, 'f'},

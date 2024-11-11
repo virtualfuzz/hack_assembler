@@ -9,7 +9,7 @@ release: src/hack_assembler.c
 	${CC} ${CFLAGS} ${LDFLAGS} src/hack_assembler.c -o builds/hack_assembler
 
 test: release src/hack_assembler.c test/asm/Add.asm
-	./builds/hack_assembler -i ./test/asm/Add.asm -o ./test/to_compare/Add.hack
+	./builds/hack_assembler -fi ./test/asm/Add.asm -o ./test/to_compare/Add.hack
 
 clean:
 	rm builds/hack_assembler
