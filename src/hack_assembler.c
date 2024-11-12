@@ -8,11 +8,21 @@
 #include <unistd.h>
 
 void usage(char *program);
-void update_labels(FILE *fp);
+void update_labels(FILE *fp, FILE *output);
 void error(char *type, char *message, ...);
-void parse_options(int argc, char **argv, bool *force, char **source_filename, char **output_filename);
-void open_compiled_file(const char *source_filename, char **output_filename, const bool force, FILE **write_to);
-enum instruction { NONE, LABEL, SLASH_ONE, SLASH_TWO, A_INSTRUCT };
+void parse_options(int argc, char **argv, bool *force, char **source_filename,
+                   char **output_filename);
+void open_compiled_file(const char *source_filename, char **output_filename,
+                        const bool force, FILE **write_to);
+enum instruction {
+  NONE,
+  FINISHED_VALUE,
+  FINISHED_INSTRUCTION,
+  SLASH_ONE,
+  SLASH_TWO,
+  LABEL,
+  A_INSTRUCT
+};
 
 int main(int argc, char **argv) {
   bool force = false;
@@ -28,12 +38,13 @@ int main(int argc, char **argv) {
     error("FILE", "\"%s\" doesn't exist\n", source_filename);
   }
 
-  // Update write_to variable and set it to the pointer of the file where we are going to compile
+  // Update write_to variable and
+  // set it to the pointer of the file where we are going to compile
   FILE *write_to;
   open_compiled_file(source_filename, &output_filename, force, &write_to);
 
   // First pass: Only update the symbol table
-  update_labels(assembly);
+  update_labels(assembly, write_to);
 
   // Close file
   fclose(assembly);
@@ -61,7 +72,8 @@ void usage(char *program) {
          "executed on the Hack computer.\n");
 }
 
-void open_compiled_file(const char *source_filename, char **output_filename, const bool force, FILE **write_to) {
+void open_compiled_file(const char *source_filename, char **output_filename,
+                        const bool force, FILE **write_to) {
   if (output_filename == NULL) {
     // Copy into a new string source filename
     // Reason: We used to output_filename = source_filename
@@ -97,7 +109,9 @@ void open_compiled_file(const char *source_filename, char **output_filename, con
 
   // If file already exists and we allow overwriting
   if (access(*output_filename, F_OK) != -1 && force == false) {
-    error("FILE ", "%s already exists, use the --force flag to overwrite file\n", *output_filename);
+    error("FILE ",
+          "%s already exists, use the --force flag to overwrite file\n",
+          *output_filename);
   }
 
   // Create compiled code file
@@ -109,40 +123,40 @@ void open_compiled_file(const char *source_filename, char **output_filename, con
   }
 }
 
-// Parse options from cmd line args and update force, source_filename and output_filename accordingly
-void parse_options(int argc, char **argv, bool *force, char **source_filename, char **output_filename) {
-    // Options that our compiler takes
-    struct option long_options[] = {
-        {"force", no_argument, 0, 'f'},
-        {"input", required_argument, 0, 'i'},
-        {"output", required_argument, 0, 'o'},
-        {0, 0, 0, 0}
-    };
+// Parse options from cmd line args and update force, source_filename and
+// output_filename accordingly
+void parse_options(int argc, char **argv, bool *force, char **source_filename,
+                   char **output_filename) {
+  // Options that our compiler takes
+  struct option long_options[] = {{"force", no_argument, 0, 'f'},
+                                  {"input", required_argument, 0, 'i'},
+                                  {"output", required_argument, 0, 'o'},
+                                  {0, 0, 0, 0}};
 
-    // Get options
-    int opt;
-    while ((opt = getopt_long(argc, argv, "fi:o:", long_options, NULL)) != -1) {
-        switch (opt) {
-            case 'f':
-                *force = true;
-                break;
-            case 'i':
-                *source_filename = optarg;
-                break;
-            case 'o':
-                *output_filename = optarg;
-                break;
-            case '?':
-                usage(argv[0]);
-                exit(EXIT_FAILURE);
-        }
+  // Get options
+  int opt;
+  while ((opt = getopt_long(argc, argv, "fi:o:", long_options, NULL)) != -1) {
+    switch (opt) {
+    case 'f':
+      *force = true;
+      break;
+    case 'i':
+      *source_filename = optarg;
+      break;
+    case 'o':
+      *output_filename = optarg;
+      break;
+    case '?':
+      usage(argv[0]);
+      exit(EXIT_FAILURE);
     }
+  }
 
-    // Source filename is required
-    if (*source_filename == NULL) {
-        usage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
+  // Source filename is required
+  if (*source_filename == NULL) {
+    usage(argv[0]);
+    exit(EXIT_FAILURE);
+  }
 }
 
 // Take a file as input and add labels to the symbol table if missing
@@ -170,7 +184,8 @@ void update_labels(FILE *fp, FILE *output) {
         strncat(value, &line[i], 1);
       }
 
-      // TODO: Document that
+      // Check for current character and either add it to value or set the
+      // current instruction
       switch (line[i]) {
       case '@':
         if (current_instruct == NONE) {
@@ -190,8 +205,9 @@ void update_labels(FILE *fp, FILE *output) {
         }
         break;
       case ')':
-        if (current_instruct != NONE) {
-          current_instruct = NONE;
+        if (current_instruct != FINISHED_INSTRUCTION ||
+            current_instruct == FINISHED_VALUE) {
+          current_instruct = FINISHED_INSTRUCTION;
         } else {
           fclose(fp);
           free(line);
@@ -203,19 +219,37 @@ void update_labels(FILE *fp, FILE *output) {
         case SLASH_ONE:
           current_instruct = SLASH_TWO;
           break;
+        case FINISHED_INSTRUCTION:
         case NONE:
           current_instruct = SLASH_ONE;
           break;
         default:
-          error("SYNTAX ", "WAHT THE FUKC\n", current_line);
+          error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
+                current_line);
         }
         break;
       default:
-        // TODO: case thing
-        // Ignore whitespace
-        if (isspace(line[i])) {
-        } else if (current_instruct == A_INSTRUCT && isdigit(line[i])) {
+        // Handle the values provided in the instruction
+        if (current_instruct == A_INSTRUCT && isdigit(line[i])) {
           strncat(value, &line[i], 1);
+        } else if (isspace(line[i])) {
+          // This part of the code allows for spacing like @      19 or MD =  0
+          if (strcmp(value, "") != 0) {
+            switch (current_instruct) {
+            case A_INSTRUCT:
+              current_instruct = FINISHED_INSTRUCTION;
+              break;
+            case LABEL:
+              current_instruct = FINISHED_VALUE;
+              break;
+            case SLASH_ONE:
+              error("SYNTAX ", "Unexpected character (%c) on line %zu\n",
+                    line[i], current_line);
+              break;
+            default:
+              break;
+            }
+          }
         } else {
           error("SYNTAX ", "Unexepected character (%c) on line %zu\n", line[i],
                 current_line);
