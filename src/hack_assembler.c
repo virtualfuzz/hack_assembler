@@ -95,17 +95,9 @@ void open_compiled_file(const char *source_filename, char **output_filename, con
     strcat(*output_filename, ".hack");
   }
 
-  // Check if file exists to prevent overwriting
-  // TODO: FINISH THAT
-  if (access(*output_filename, F_OK) != -1) {
-    if (force == true) {
-      // open file
-      printf("empty file or some shit like that\n");
-      printf("we didnt finish this shit\n");
-      //exit(EXIT_FAILURE);
-    } else {
-      error("FILE ", "%s already exists, use the --force flag to overwrite file\n", *output_filename);
-    }
+  // If file already exists and we allow overwriting
+  if (access(*output_filename, F_OK) != -1 && force == false) {
+    error("FILE ", "%s already exists, use the --force flag to overwrite file\n", *output_filename);
   }
 
   // Create compiled code file
@@ -154,7 +146,7 @@ void parse_options(int argc, char **argv, bool *force, char **source_filename, c
 }
 
 // Take a file as input and add labels to the symbol table if missing
-void update_labels(FILE *fp) {
+void update_labels(FILE *fp, FILE *output) {
   char *line = NULL;
   size_t len = 0;
   ssize_t read;
