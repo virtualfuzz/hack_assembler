@@ -24,6 +24,8 @@ enum instruction {
   A_INSTRUCT
 };
 
+const unsigned int MAX_A_VALUE = 32767;
+
 int main(int argc, char **argv) {
   bool force = false;
   char *source_filename = NULL;
@@ -53,6 +55,10 @@ int main(int argc, char **argv) {
   exit(EXIT_SUCCESS);
 }
 
+// TODO: Everytime it errors out, properly finish the thing to prevent memory
+// leaks
+// TODO: Create a cleanup function that is runned by every function that exits
+// the program
 void error(char *type, char *message, ...) {
   fprintf(stderr, "ERROR: %s", type);
 
@@ -159,6 +165,25 @@ void parse_options(int argc, char **argv, bool *force, char **source_filename,
   }
 }
 
+// Convert to binary and send to stream
+// A instruction specific since we also print the zeros
+void a_instruction_to_binary(FILE *stream, unsigned short n) {
+  // Initialise the a instruction value to 0 (this way we print the whole thing instead)
+  unsigned short binary_num[15] = {0};
+
+  // Convert to binary (going to be saved in the reverse order)
+  unsigned short length_binary = 0;
+  while (n > 0) {
+    binary_num[length_binary] = n % 2;
+    n = n / 2;
+    length_binary++;
+  }
+
+  // Print the entirety of the binary_num into the stream (it's in reverse order tho)
+  for (short j = 14; j >= 0; j--) 
+    fprintf(stream, "%d", binary_num[j]); 
+}
+
 // Take a file as input and add labels to the symbol table if missing
 void update_labels(FILE *fp, FILE *output) {
   char *line = NULL;
@@ -171,6 +196,7 @@ void update_labels(FILE *fp, FILE *output) {
 
     size_t line_len = strlen(line);
     enum instruction current_instruct = NONE;
+    enum instruction valid_instruction = NONE;
     char value[line_len];
     strcpy(value, "");
 
@@ -184,13 +210,13 @@ void update_labels(FILE *fp, FILE *output) {
         strncat(value, &line[i], 1);
       }
 
-      // Check for current character and either add it to value or set the
-      // current instruction
+      // Check for current character and either add it to value or
+      // set the current instruction
       switch (line[i]) {
       case '@':
         if (current_instruct == NONE) {
           current_instruct = A_INSTRUCT;
-          printf("a instruction\n");
+          valid_instruction = A_INSTRUCT;
         } else {
           error("SYNTAX ", "Unexpected @ at line %zu\n", current_line);
         }
@@ -198,6 +224,7 @@ void update_labels(FILE *fp, FILE *output) {
       case '(':
         if (current_instruct == NONE && strlen(value) == 0) {
           current_instruct = LABEL;
+          valid_instruction = LABEL;
         } else {
           fclose(fp);
           free(line);
@@ -232,6 +259,13 @@ void update_labels(FILE *fp, FILE *output) {
         // Handle the values provided in the instruction
         if (current_instruct == A_INSTRUCT && isdigit(line[i])) {
           strncat(value, &line[i], 1);
+
+          // Max size of A instruction (since it can overflow since we are using 15 bytes to represent the number)
+          if (5 < strlen(value))
+            error("A INSTRUCTION SIZE ",
+          "The value provided in the A instruction will overflow (max value: %i),\n\
+If this value is supposed to be supported in a future Hack version, please report to developer!\n", MAX_A_VALUE);
+          
         } else if (isspace(line[i])) {
           // This part of the code allows for spacing like @      19 or MD =  0
           if (strcmp(value, "") != 0) {
@@ -256,17 +290,25 @@ void update_labels(FILE *fp, FILE *output) {
         }
       }
 
-      if (current_instruct == SLASH_TWO) {
+      if (current_instruct == SLASH_TWO)
         break;
-      }
     }
 
-    // TODO: In here compile the instruction
+    // Handle the instruction now that we parsed it
+    if (valid_instruction == A_INSTRUCT) {
+      // Convert string to a long number
+      unsigned long a_value = atol(value);
 
-    if (strlen(value)) {
-      // FIXME: We also need to know on what address we are
-      // How about we consider everything that isn't a // or space as a command
-      printf("%s\n", value);
+      // Check if number is too big since it will overflow if it is bigger
+      if (MAX_A_VALUE < a_value)
+        error("A INSTRUCTION SIZE ",
+          "The value provided in the A instruction will overflow (max value: %i),\n\
+If this value is supposed to be supported in a future Hack version, please report to developer!\n", MAX_A_VALUE);
+
+      // Write the instruction to the file
+      fprintf(output, "0"); // Write 0 (a instruction)
+      a_instruction_to_binary(output, a_value); // Write the value
+      fprintf(output, "\n"); // Write a new line
     }
 
     current_line++;
