@@ -21,7 +21,8 @@ enum instruction {
   SLASH_ONE,
   SLASH_TWO,
   LABEL,
-  A_INSTRUCT
+  A_INSTRUCTION,
+  C_INSTRUCTION
 };
 
 const unsigned int MAX_A_VALUE = 32767;
@@ -168,7 +169,8 @@ void parse_options(int argc, char **argv, bool *force, char **source_filename,
 // Convert to binary and send to stream
 // A instruction specific since we also print the zeros
 void a_instruction_to_binary(FILE *stream, unsigned short n) {
-  // Initialise the a instruction value to 0 (this way we print the whole thing instead)
+  // Initialise the a instruction value to 0 (this way we print the whole thing
+  // instead)
   unsigned short binary_num[15] = {0};
 
   // Convert to binary (going to be saved in the reverse order)
@@ -179,9 +181,10 @@ void a_instruction_to_binary(FILE *stream, unsigned short n) {
     length_binary++;
   }
 
-  // Print the entirety of the binary_num into the stream (it's in reverse order tho)
-  for (short j = 14; j >= 0; j--) 
-    fprintf(stream, "%d", binary_num[j]); 
+  // Print the entirety of the binary_num into the stream (it's in reverse order
+  // tho)
+  for (short j = 14; j >= 0; j--)
+    fprintf(stream, "%d", binary_num[j]);
 }
 
 // Take a file as input and add labels to the symbol table if missing
@@ -195,36 +198,39 @@ void update_labels(FILE *fp, FILE *output) {
   while ((read = getline(&line, &len, fp)) != -1) {
 
     size_t line_len = strlen(line);
-    enum instruction current_instruct = NONE;
-    enum instruction valid_instruction = NONE;
-    char value[line_len];
-    strcpy(value, "");
+    enum instruction parsing_status =
+        NONE; // Parsing status, changes throughout line
+    enum instruction instruction_parsed =
+        NONE; // Type of the instruction parsed in the current line
+    char *pointer_to_value_changed = NULL; // pointer to the current value
+                                           // changed (A value/dest/comp/jump)
+    char *dest = NULL;                     // destination part of C instruction
+    char *comp = NULL;                     // comp part of C instruction
+    char *jump = NULL;                     // jump part of C instruction
 
     // Loop though each character in line
     for (size_t i = 0; i < line_len; i++) {
-      // TODO: Rework on that
-      // Copy character if we are currently in a label
-      // set instruction type to like label or a instruct
-      // do something depending on that
-      if (current_instruct == LABEL && line[i] != ')') {
-        strncat(value, &line[i], 1);
-      }
-
       // Check for current character and either add it to value or
       // set the current instruction
       switch (line[i]) {
       case '@':
-        if (current_instruct == NONE) {
-          current_instruct = A_INSTRUCT;
-          valid_instruction = A_INSTRUCT;
+        if (parsing_status == NONE) {
+          parsing_status = A_INSTRUCTION;
+          instruction_parsed = A_INSTRUCTION;
+
+          // Create new string with
+          // the max size set to 6 or line_len (which ever is smaller)
+          unsigned short allocation_size = line_len < 6 ? line_len : 6;
+          pointer_to_value_changed = (char *)malloc(allocation_size);
+          strcpy(pointer_to_value_changed, "");
         } else {
           error("SYNTAX ", "Unexpected @ at line %zu\n", current_line);
         }
         break;
       case '(':
-        if (current_instruct == NONE && strlen(value) == 0) {
-          current_instruct = LABEL;
-          valid_instruction = LABEL;
+        if (parsing_status == NONE) {
+          parsing_status = LABEL;
+          instruction_parsed = LABEL;
         } else {
           fclose(fp);
           free(line);
@@ -232,9 +238,9 @@ void update_labels(FILE *fp, FILE *output) {
         }
         break;
       case ')':
-        if (current_instruct != FINISHED_INSTRUCTION ||
-            current_instruct == FINISHED_VALUE) {
-          current_instruct = FINISHED_INSTRUCTION;
+        if (parsing_status != FINISHED_INSTRUCTION ||
+            parsing_status == FINISHED_VALUE) {
+          parsing_status = FINISHED_INSTRUCTION;
         } else {
           fclose(fp);
           free(line);
@@ -242,39 +248,92 @@ void update_labels(FILE *fp, FILE *output) {
         }
         break;
       case '/':
-        switch (current_instruct) {
+        switch (parsing_status) {
         case SLASH_ONE:
-          current_instruct = SLASH_TWO;
+          parsing_status = SLASH_TWO;
           break;
+        case C_INSTRUCTION:
+        case FINISHED_VALUE:
+          if (instruction_parsed == C_INSTRUCTION) {
+            // dest -> dest
+            if ((dest == NULL || strcmp(dest, "") != 0) &&
+            (jump == NULL || strcmp(jump, "") != 0) &&
+            (comp != NULL && strcmp(comp, "") != 0)) {
+              parsing_status = SLASH_ONE;
+              break;
+            }
+          }
+
+          error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
+                current_line);
+          break;
+
+          // okay when to break
+          // if smth != null and string not empty then good
+          //
+          // check if comp is atleast set, otherise then bug
+          // check if every value that has been intialised is set (to prevent =)
+
         case FINISHED_INSTRUCTION:
         case NONE:
-          current_instruct = SLASH_ONE;
+          parsing_status = SLASH_ONE;
           break;
+        // TODO: For C instructions we just need to make sure that there is a
+        // comp
         default:
           error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
                 current_line);
         }
         break;
+      case '0':
+      case '1':
+      case '-':
+      case 'D':
+      case 'A':
+      case '!':
+      case 'M':
+        if (parsing_status == NONE) {
+          parsing_status = C_INSTRUCTION;
+          instruction_parsed = C_INSTRUCTION;
+
+          // Create new string with
+          // the max size set to 4 or line_len (which ever is smaller)
+          dest = (char *)malloc(4);
+          pointer_to_value_changed = dest;
+        }
+        // THIS ALSO GETS RUN IF PARSING STATUS IS C INSTRUCTION WHICH PREVENTS
+        // DEFAULT
+        __attribute__((fallthrough));
       default:
         // Handle the values provided in the instruction
-        if (current_instruct == A_INSTRUCT && isdigit(line[i])) {
-          strncat(value, &line[i], 1);
+        if (parsing_status == A_INSTRUCTION && isdigit(line[i])) {
+          // Max size of A instruction (since it can overflow since we are using
+          // 15 bytes to represent the number)
+          if (4 < strlen(pointer_to_value_changed))
+            error(
+                "A INSTRUCTION SIZE ",
+                "The value provided in the A instruction will overflow (max value: %i),\n\
+If this value is supposed to be supported in a future Hack version, please report to developer!\n",
+                MAX_A_VALUE);
 
-          // Max size of A instruction (since it can overflow since we are using 15 bytes to represent the number)
-          if (5 < strlen(value))
-            error("A INSTRUCTION SIZE ",
-          "The value provided in the A instruction will overflow (max value: %i),\n\
-If this value is supposed to be supported in a future Hack version, please report to developer!\n", MAX_A_VALUE);
-          
+          strncat(pointer_to_value_changed, &line[i], 1);
+
         } else if (isspace(line[i])) {
           // This part of the code allows for spacing like @      19 or MD =  0
-          if (strcmp(value, "") != 0) {
-            switch (current_instruct) {
-            case A_INSTRUCT:
-              current_instruct = FINISHED_INSTRUCTION;
+          if (pointer_to_value_changed != NULL &&
+              strcmp(pointer_to_value_changed, "") != 0) {
+            switch (parsing_status) {
+            case A_INSTRUCTION:
+              parsing_status = FINISHED_INSTRUCTION;
+              break;
+            case C_INSTRUCTION:
+              // FIXME: COMMENTS IN C INSTRUCTIONS DONT WORK :skull:
+              // FIXME: Comments are mendataory, we don't care if we are doing
+              // shit (YOU GET IT?)
+              parsing_status = FINISHED_VALUE;
               break;
             case LABEL:
-              current_instruct = FINISHED_VALUE;
+              parsing_status = FINISHED_VALUE;
               break;
             case SLASH_ONE:
               error("SYNTAX ", "Unexpected character (%c) on line %zu\n",
@@ -284,32 +343,90 @@ If this value is supposed to be supported in a future Hack version, please repor
               break;
             }
           }
+        } else if ((parsing_status == FINISHED_VALUE &&
+                    instruction_parsed == C_INSTRUCTION) ||
+                   parsing_status == C_INSTRUCTION) {
+          switch (line[i]) {
+          case '=':
+            // If the pointer to value changed is dest (value supposed to be
+            // before =)
+            if (pointer_to_value_changed == dest) {
+              // Create a new string with the size set to 4 or length of line
+              const unsigned short allocation_size =
+                  line_len + 1 < 4 ? line_len + 1 : 4;
+              comp = (char *)malloc(allocation_size);
+              pointer_to_value_changed = comp;
+              strcpy(pointer_to_value_changed, "");
+              parsing_status = C_INSTRUCTION;
+            } else
+              error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
+                    line[i], current_line);
+            break;
+          case ';':
+            if (pointer_to_value_changed == dest) {
+              comp = dest;
+            } else if (pointer_to_value_changed == comp) {
+            } else
+              error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
+                    line[i], current_line);
+
+            jump = (char *)malloc(4);
+            pointer_to_value_changed = jump;
+            strcpy(pointer_to_value_changed, "");
+            parsing_status = C_INSTRUCTION;
+            // if pointer == dest -> comp = dest; pointer = jump
+            // if pointer == comp -> pointer = jump
+            // if pointer == jump -> error
+            break;
+          default:
+            // just add it to the current value?
+            if (parsing_status == C_INSTRUCTION)
+              strncat(pointer_to_value_changed, &line[i], 1);
+            else
+              error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
+                    line[i], current_line);
+
+            break;
+          }
+          // we should add the value to pointer current value -> dest
+          // we will just check for the length
         } else {
           error("SYNTAX ", "Unexepected character (%c) on line %zu\n", line[i],
                 current_line);
         }
       }
 
-      if (current_instruct == SLASH_TWO)
+      if (parsing_status == SLASH_TWO)
         break;
     }
 
     // Handle the instruction now that we parsed it
-    if (valid_instruction == A_INSTRUCT) {
+    if (instruction_parsed == A_INSTRUCTION) {
       // Convert string to a long number
-      unsigned long a_value = atol(value);
+      unsigned long a_value = atol(pointer_to_value_changed);
 
       // Check if number is too big since it will overflow if it is bigger
       if (MAX_A_VALUE < a_value)
-        error("A INSTRUCTION SIZE ",
-          "The value provided in the A instruction will overflow (max value: %i),\n\
-If this value is supposed to be supported in a future Hack version, please report to developer!\n", MAX_A_VALUE);
+        error(
+            "A INSTRUCTION SIZE ",
+            "The value provided in the A instruction will overflow (max value: %i),\n\
+If this value is supposed to be supported in a future Hack version, please report to developer!\n",
+            MAX_A_VALUE);
 
       // Write the instruction to the file
-      fprintf(output, "0"); // Write 0 (a instruction)
+      fprintf(output, "0");                     // Write 0 (a instruction)
       a_instruction_to_binary(output, a_value); // Write the value
-      fprintf(output, "\n"); // Write a new line
+      fprintf(output, "\n");                    // Write a new line
     }
+
+    if (dest)
+      printf("dest: %s\n", dest);
+
+    if (comp)
+      printf("comp: %s\n", comp);
+
+    if (jump)
+      printf("jump: %s\n", jump);
 
     current_line++;
   }
