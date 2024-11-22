@@ -1,11 +1,4 @@
-#include <ctype.h>
-#include <getopt.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include "hack_assembler.h"
 
 void usage(char *program);
 void update_labels(FILE *fp, FILE *output);
