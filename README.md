@@ -23,3 +23,11 @@ GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+### Third-Party projects
+
+[LICENSE-3RD-PARTY.md](LICENSE-3RD-PARTY.md)
+
+This project uses hashmap.c  
+hashmap.c and all its files inside of the hashmap.c/ and src/hashmap.h
+are licensed under the MIT license.
