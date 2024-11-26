@@ -66,7 +66,7 @@ void usage(const char *program) {
 void open_compiled_file(FILE *assembly_file, const char *source_filename,
                         char **output_filename, const bool force,
                         FILE **write_to) {
-  if (output_filename == NULL) {
+  if (*output_filename == NULL) {
     // Copy into a new string source filename
     // Reason: We used to output_filename = source_filename
     // but it will modify source too
@@ -91,7 +91,7 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
 
       if (strcmp(to_compare, ".asm") == 0) {
         // Remove the last 4 characters (.asm)
-        *output_filename[length - 4] = '\0';
+        (*output_filename)[length - 4] = '\0';
       }
     }
 
@@ -101,7 +101,7 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
 
   // If file already exists and we allow overwriting
   if (access(*output_filename, F_OK) != -1 && force == false) {
-    error(assembly_file, NULL, "FILE ",
+    error(assembly_file, NULL, NULL, "FILE ",
           "%s already exists, use the --force flag to overwrite file\n",
           *output_filename);
   }
@@ -109,7 +109,7 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
   // Create compiled code file
   *write_to = fopen(*output_filename, "w");
   if (*write_to == NULL) {
-    error(assembly_file, NULL, "FILE ",
+    error(assembly_file, NULL, NULL, "FILE ",
           "Failed to create file %s maybe a directory doesn't exist...",
           *output_filename);
   }
