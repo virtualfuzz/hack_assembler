@@ -1,8 +1,9 @@
 #include "hack_assembler.h"
-#include "helpers.h"
 #include "compiler/compiler.h"
+#include "helpers.h"
 
-
+// This file implements the "frontend" of the compiler
+// Parses the command line arguments and then starts the proper functions
 int main(int argc, char **argv) {
   // Parse options
   bool force = false;
