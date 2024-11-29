@@ -95,7 +95,7 @@ If this value is supposed to be supported in a future Hack version, please repor
     if (compiled_comp == NULL) {
       cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
               jump_hashmap);
-      error("TYPE", "Comp part of C instruction not found in valid comp parts");
+      error("TYPE ", "Comp part of C instruction not found in valid comp parts (comp = %s)", comp.value);
     }
 
     fprintf(output_file, "%s", compiled_comp->compiled);
@@ -113,7 +113,7 @@ If this value is supposed to be supported in a future Hack version, please repor
         if (compiled_dest[0] == '1') {
           cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
                   jump_hashmap);
-          error("TYPE ", "Got A twice in the dest part of a C instruction");
+          error("TYPE ", "Got A twice in the dest part of a C instruction (dest = %s)", dest.value);
         }
 
         compiled_dest[0] = '1';
@@ -122,7 +122,7 @@ If this value is supposed to be supported in a future Hack version, please repor
         if (compiled_dest[1] == '1') {
           cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
                   jump_hashmap);
-          error("TYPE ", "Got D twice in the dest part of a C instruction");
+          error("TYPE ", "Got D twice in the dest part of a C instruction (dest = %s)", dest.value);
         }
 
         compiled_dest[1] = '1';
@@ -131,7 +131,7 @@ If this value is supposed to be supported in a future Hack version, please repor
         if (compiled_dest[2] == '1') {
           cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
                   jump_hashmap);
-          error("TYPE ", "Got M twice in the dest part of a C instruction");
+          error("TYPE ", "Got M twice in the dest part of a C instruction (dest = %s)", dest.value);
         }
 
         compiled_dest[2] = '1';
