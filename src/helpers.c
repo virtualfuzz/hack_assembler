@@ -3,23 +3,31 @@
 #include <stdlib.h>
 
 // Clean up memory/opened files
-void cleanup(FILE *assembly_file, FILE *output_file, char *line, char *output_filename) {
-  if (assembly_file)
+void cleanup(FILE *assembly_file, FILE *output_file, char *line,
+             char *output_filename, struct hashmap *comp_hashmap,
+             struct hashmap *jump_hashmap) {
+  if (assembly_file != NULL)
     fclose(assembly_file);
 
-  if (output_file)
+  if (output_file != NULL)
     fclose(output_file);
 
-  if (line)
+  if (line != NULL)
     free(line);
 
-  if (output_filename)
+  if (output_filename != NULL)
     free(output_filename);
+
+  if (comp_hashmap != NULL)
+    hashmap_free(comp_hashmap);
+
+  if (jump_hashmap != NULL)
+    hashmap_free(jump_hashmap);
 }
 
-// Cleanup memory, print error, and exit
-void error(FILE *assembly_file, FILE *output_file, char *line, char *output_filename, const char *type,
-           const char *message, ...) {
+// You should run cleanup() to free memory and files
+// Print error, and exit
+void error(const char *type, const char *message, ...) {
   fprintf(stderr, "ERROR: %s", type);
 
   va_list arg;
@@ -29,7 +37,6 @@ void error(FILE *assembly_file, FILE *output_file, char *line, char *output_file
 
   fprintf(stderr, "\n");
 
-  cleanup(assembly_file, output_file, line, output_filename);
   exit(EXIT_FAILURE);
 }
 

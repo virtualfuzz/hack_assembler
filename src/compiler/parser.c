@@ -1,8 +1,8 @@
 #include "parser.h"
-#include <stdio.h>
-#include <ctype.h>
-#include <string.h>
 #include "../helpers.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <string.h>
 
 // Implements the parser, which parses a line
 // And outputs the parsed instruction to be compiled
@@ -14,7 +14,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
                 const size_t current_line, enum instruction *instruction_parsed,
                 char a_value[], struct c_instruction_value *dest,
                 struct c_instruction_value *comp,
-                struct c_instruction_value *jump) {
+                struct c_instruction_value *jump, struct hashmap *comp_hashmap,
+                struct hashmap *jump_hashmap) {
 
   // What we are currently doing in the line
   enum instruction parsing_status = NONE;
@@ -34,9 +35,10 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
         *instruction_parsed = A_INSTRUCTION;
 
         pointer_to_value_changed = a_value;
-      } else
-        error(assembly_file, output_file, line, NULL, "SYNTAX ",
-              "Unexpected @ at line %zu\n", current_line);
+      } else {
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        error("SYNTAX ", "Unexpected @ at line %zu\n", current_line);
+      };
       break;
 
     // Labels
@@ -45,16 +47,18 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
       if (parsing_status == NONE) {
         parsing_status = LABEL;
         *instruction_parsed = LABEL;
-      } else
-        error(assembly_file, output_file, line, NULL, "SYNTAX ",
-              "Unexpected ( at line %zu\n", current_line);
+      } else {
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        error("SYNTAX ", "Unexpected ( at line %zu\n", current_line);
+      }
       break;
     case ')':
       if (parsing_status == LABEL || parsing_status == FINISHED_VALUE) {
         parsing_status = FINISHED_INSTRUCTION;
-      } else
-        error(assembly_file, output_file, line, NULL, "SYNTAX ",
-              "Unexpected ) at line %zu\n", current_line);
+      } else {
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        error("SYNTAX ", "Unexpected ) at line %zu\n", current_line);
+      }
       break;
 
     // Comments
@@ -82,8 +86,9 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
 
         __attribute__((fallthrough));
       default:
-        error(assembly_file, output_file, line, NULL, "SYNTAX ",
-              "Unexpected character (%c) on line %zu\n", line[i], current_line);
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
+              current_line);
       }
       break;
 
@@ -114,12 +119,14 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
       if (parsing_status == A_INSTRUCTION && isdigit(line[i])) {
         // Max size of A instruction (since it can overflow since we are using
         // 15 bytes to represent the number)
-        if (4 < strlen(pointer_to_value_changed))
+        if (4 < strlen(pointer_to_value_changed)) {
+          cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
           error(
-              assembly_file, output_file, line, NULL, "A INSTRUCTION SIZE ",
+              "A INSTRUCTION SIZE ",
               "The value provided in the A instruction will overflow (max value: %i),\n\
 If this value is supposed to be supported in a future Hack version, please report to developer!\n",
               MAX_A_VALUE);
+        }
 
         strncat(a_value, &line[i], 1);
 
@@ -142,8 +149,8 @@ If this value is supposed to be supported in a future Hack version, please repor
             parsing_status = FINISHED_VALUE;
             break;
           case SLASH_ONE:
-            error(assembly_file, output_file, line, NULL, "SYNTAX ",
-                  "Unexpected character (%c) on line %zu\n", line[i],
+            cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+            error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
                   current_line);
             break;
           case NONE:
@@ -168,11 +175,11 @@ If this value is supposed to be supported in a future Hack version, please repor
 
             comp->validity = true;
             pointer_to_value_changed = comp->value;
-          } else
-            error(assembly_file, output_file, line, NULL, "SYNTAX ",
-                  "Unexepected character (%c) on line %zu\n", line[i],
-                  current_line);
-
+          } else {
+            cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+            error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
+                  line[i], current_line);
+          }
           break;
 
           // comp -> jump
@@ -181,10 +188,11 @@ If this value is supposed to be supported in a future Hack version, please repor
           // start) then the actual one is comp since we encountered a ;
           if (pointer_to_value_changed == dest->value)
             comp = dest;
-          else if (pointer_to_value_changed != comp->value)
-            error(assembly_file, output_file, line, NULL, "SYNTAX ",
-                  "Unexepected character (%c) on line %zu\n", line[i],
-                  current_line);
+          else if (pointer_to_value_changed != comp->value) {
+            cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+            error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
+                  line[i], current_line);
+          }
 
           parsing_status = C_INSTRUCTION;
 
@@ -200,19 +208,20 @@ If this value is supposed to be supported in a future Hack version, please repor
           if (parsing_status == C_INSTRUCTION &&
               strlen(pointer_to_value_changed) < 3)
             strncat(pointer_to_value_changed, &line[i], 1);
-          else
-            error(assembly_file, output_file, line, NULL, "SYNTAX ",
-                  "Unexepected character (%c) on line %zu\n", line[i],
-                  current_line);
-
+          else {
+            cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+            error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
+                  line[i], current_line);
+          }
           break;
         }
 
         // Unhandled character
-      } else
-        error(assembly_file, output_file, line, NULL, "SYNTAX ",
-              "Unexepected character (%c) on line %zu\n", line[i],
+      } else {
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        error("SYNTAX ", "Unexepected character (%c) on line %zu\n", line[i],
               current_line);
+      }
     }
 
     // Break since we are in a comment
@@ -225,7 +234,7 @@ If this value is supposed to be supported in a future Hack version, please repor
   if ((dest->validity == true && strcmp(dest->value, "") == 0) ||
       (jump->validity == true && strcmp(jump->value, "") == 0) ||
       (comp->validity == true && strcmp(comp->value, "") == 0)) {
-    error(assembly_file, output_file, line, NULL, "SYNTAX ",
-          "Unexepected character end of line %zu\n", current_line);
+    cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+    error("SYNTAX ", "Unexepected character end of line %zu\n", current_line);
   }
 }

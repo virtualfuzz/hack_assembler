@@ -1,6 +1,7 @@
-#include <stdio.h>
-#include <stdbool.h>
 #include "parser.h"
+#include <stdbool.h>
+#include "hashmap.h"
+#include <stdio.h>
 
 void compile_to_file(FILE *input, FILE *output);
 void compile_instruction(FILE *assembly_file, FILE *output_file, char *line,
@@ -8,5 +9,7 @@ void compile_instruction(FILE *assembly_file, FILE *output_file, char *line,
                          const char a_value[],
                          const struct c_instruction_value dest,
                          const struct c_instruction_value comp,
-                         const struct c_instruction_value jump);
+                         const struct c_instruction_value jump,
+                         struct hashmap *comp_hashmap,
+                         struct hashmap *jump_hashmap);
 void a_instruction_to_binary(FILE *stream, unsigned short n);

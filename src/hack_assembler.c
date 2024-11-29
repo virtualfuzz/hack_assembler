@@ -14,10 +14,8 @@ int main(int argc, char **argv) {
 
   // Try to open source file
   FILE *assembly_file = fopen(source_filename, "r");
-  if (assembly_file == NULL) {
-    error(NULL, NULL, NULL, NULL, "FILE", "\"%s\" doesn't exist\n",
-          source_filename);
-  }
+  if (assembly_file == NULL)
+    error("FILE", "\"%s\" doesn't exist\n", source_filename);
 
   // Open the compiled file
   FILE *output_file;
@@ -27,7 +25,7 @@ int main(int argc, char **argv) {
   // Finally start compiling
   compile_to_file(assembly_file, output_file);
 
-  cleanup(assembly_file, output_file, NULL, NULL);
+  cleanup(assembly_file, output_file, NULL, NULL, NULL, NULL);
   exit(EXIT_SUCCESS);
 }
 
@@ -45,7 +43,8 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
 
     *output_filename = (char *)malloc(allocation_size);
     if (*output_filename == NULL) {
-      error(assembly_file, NULL, NULL, *output_filename, "MEMORY ",
+      cleanup(assembly_file, NULL, NULL, *output_filename, NULL, NULL);
+      error("MEMORY ",
             "Failed to allocate %zu bytes for hack_save_file string\n",
             allocation_size);
     }
@@ -72,17 +71,20 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
 
   // If file already exists and we allow overwriting
   if (access(*output_filename, F_OK) != -1 && force == false) {
-    error(assembly_file, NULL, NULL, *output_filename, "FILE ",
+    cleanup(assembly_file, NULL, NULL, *output_filename, NULL, NULL);
+    error("FILE ",
           "%s already exists, use the --force flag to overwrite file\n",
           *output_filename);
   }
 
   // Create compiled code file
   *write_to = fopen(*output_filename, "w");
-  if (*write_to == NULL)
-    error(assembly_file, NULL, NULL, *output_filename, "FILE ",
+  if (*write_to == NULL) {
+    cleanup(assembly_file, *write_to, NULL, *output_filename, NULL, NULL);
+    error("FILE ",
           "Failed to create file %s maybe a directory doesn't exist...",
           *output_filename);
+  }
 
   free(*output_filename);
 }

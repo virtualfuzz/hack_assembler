@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include "hashmap.h"
 
 enum instruction {
   NONE,
@@ -21,4 +22,5 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
                 const size_t current_line, enum instruction *instruction_parsed,
                 char a_value[], struct c_instruction_value *dest,
                 struct c_instruction_value *comp,
-                struct c_instruction_value *jump);
+                struct c_instruction_value *jump, struct hashmap *comp_hashmap,
+                struct hashmap *jump_hashmap);
