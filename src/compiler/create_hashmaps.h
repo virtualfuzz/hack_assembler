@@ -1,3 +1,5 @@
+#include "hashmap.h"
+
 // Compiled instructions are used for labels and
 // Holding instructions (the comp and jump table)
 struct compiled_instruction {
