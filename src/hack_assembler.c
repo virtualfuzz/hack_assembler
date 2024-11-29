@@ -85,8 +85,6 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
           "Failed to create file %s maybe a directory doesn't exist...",
           *output_filename);
   }
-
-  free(*output_filename);
 }
 
 // Parse options from cmd line args
