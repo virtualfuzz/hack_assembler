@@ -90,22 +90,27 @@ If this value is supposed to be supported in a future Hack version, please repor
     const struct compiled_instruction *compiled_comp = hashmap_get(
         comp_hashmap, &(struct compiled_instruction){.original = comp.value});
 
-    // Comp part is required, it's already checked before tho
-    // This part only exists if you write a comp that doesn't exist
-    if (compiled_comp == NULL) {
+    // If comp exists and is valid
+    if (compiled_comp != NULL)
+      fprintf(output_file, "%s", compiled_comp->compiled);
+
+    // If comp is empty
+    else if (strcmp(comp.value, "") == 0)
+      fprintf(output_file, "0000000");
+
+    // Comp is set to something but we found nothing so it's invalid
+    else {
       cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
               jump_hashmap);
-      error("TYPE ", "Comp part of C instruction not found in valid comp parts (comp = %s)", comp.value);
+      error("TYPE ", "invalid comp value (%s) of c instruction", comp.value);
     }
-
-    fprintf(output_file, "%s", compiled_comp->compiled);
 
     // Compile dest part
 
     // Assumes that the parser made sure that the dest.value isn't longer then 3
     const unsigned short dest_size = strlen(dest.value);
     char compiled_dest[] = "000";
-    
+
     for (unsigned short i = 0; i < dest_size; i++) {
       // Set the parts of compiled_dest depending on which letter we get
       switch (dest.value[i]) {
@@ -113,7 +118,9 @@ If this value is supposed to be supported in a future Hack version, please repor
         if (compiled_dest[0] == '1') {
           cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
                   jump_hashmap);
-          error("TYPE ", "Got A twice in the dest part of a C instruction (dest = %s)", dest.value);
+          error("TYPE ",
+                "Got A twice in the dest part of a C instruction (dest = %s)",
+                dest.value);
         }
 
         compiled_dest[0] = '1';
@@ -122,7 +129,9 @@ If this value is supposed to be supported in a future Hack version, please repor
         if (compiled_dest[1] == '1') {
           cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
                   jump_hashmap);
-          error("TYPE ", "Got D twice in the dest part of a C instruction (dest = %s)", dest.value);
+          error("TYPE ",
+                "Got D twice in the dest part of a C instruction (dest = %s)",
+                dest.value);
         }
 
         compiled_dest[1] = '1';
@@ -131,7 +140,9 @@ If this value is supposed to be supported in a future Hack version, please repor
         if (compiled_dest[2] == '1') {
           cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
                   jump_hashmap);
-          error("TYPE ", "Got M twice in the dest part of a C instruction (dest = %s)", dest.value);
+          error("TYPE ",
+                "Got M twice in the dest part of a C instruction (dest = %s)",
+                dest.value);
         }
 
         compiled_dest[2] = '1';
@@ -144,12 +155,21 @@ If this value is supposed to be supported in a future Hack version, please repor
     // Compile jump part of C instruction
     const struct compiled_instruction *compiled_jump = hashmap_get(
         jump_hashmap, &(struct compiled_instruction){.original = jump.value});
-    
-    // If jump isn't set (which is okay) just add 3 zeros
-    if (compiled_jump == NULL)
-      fprintf(output_file, "000");
-    else
+
+    // If jump exist and is valid
+    if (compiled_jump != NULL)
       fprintf(output_file, "%s", compiled_jump->compiled);
+
+    // If jump is empty
+    else if (strcmp(jump.value, "") == 0)
+      fprintf(output_file, "000");
+
+    // If jump is invalid
+    else {
+      cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+              jump_hashmap);
+      error("TYPE ", "invalid jump value (%s) of c instruction", jump.value);
+    }
 
     fprintf(output_file, "\n");
     break;
