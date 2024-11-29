@@ -57,6 +57,7 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
       // Get last 4 characters of hack_save_file (first arg, asm filename)
       char to_compare[5];
       strncpy(to_compare, *output_filename + length - 4, 4);
+      to_compare[4] = '\0';
 
       if (strcmp(to_compare, ".asm") == 0) {
         // Remove the last 4 characters (.asm)
