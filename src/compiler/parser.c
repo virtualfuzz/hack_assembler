@@ -12,7 +12,7 @@ extern const int MAX_A_VALUE;
 // Set instruction_parsed, a_value, dest, comp, and jump
 void parse_line(FILE *assembly_file, FILE *output_file, char *line,
                 const size_t current_line, enum instruction *instruction_parsed,
-                char *a_value, struct c_instruction_value *dest,
+                char *a_or_dest_value, struct c_instruction_value *dest,
                 struct c_instruction_value *comp,
                 struct c_instruction_value *jump, struct hashmap *comp_hashmap,
                 struct hashmap *jump_hashmap, struct hashmap *symbol_hashmap) {
@@ -34,10 +34,10 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
         parsing_status = A_INSTRUCTION;
         *instruction_parsed = A_INSTRUCTION;
 
-        pointer_to_value_changed = a_value;
+        pointer_to_value_changed = a_or_dest_value;
       } else {
         cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_value, symbol_hashmap);
+                jump_hashmap, a_or_dest_value, symbol_hashmap);
         error("SYNTAX ", "Unexpected @ at line %zu\n", current_line);
       };
       break;
@@ -50,7 +50,7 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
         *instruction_parsed = LABEL;
       } else {
         cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_value, symbol_hashmap);
+                jump_hashmap, a_or_dest_value, symbol_hashmap);
         error("SYNTAX ", "Unexpected ( at line %zu\n", current_line);
       }
       break;
@@ -59,7 +59,7 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
         parsing_status = FINISHED_INSTRUCTION;
       } else {
         cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_value, symbol_hashmap);
+                jump_hashmap, a_or_dest_value, symbol_hashmap);
         error("SYNTAX ", "Unexpected ) at line %zu\n", current_line);
       }
       break;
@@ -90,7 +90,7 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
         __attribute__((fallthrough));
       default:
         cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_value, symbol_hashmap);
+                jump_hashmap, a_or_dest_value, symbol_hashmap);
         error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
               current_line);
       }
@@ -139,7 +139,7 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
             break;
           case SLASH_ONE:
             cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap, a_value, symbol_hashmap);
+                    jump_hashmap, a_or_dest_value, symbol_hashmap);
             error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
                   current_line);
             break;
@@ -151,12 +151,16 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
           }
         }
 
+       // Parse labels 
+      } else if (parsing_status == LABEL) {
+        strncat(a_or_dest_value, &line[i], 1);
+
         // Parse A instruction
-      } else if (parsing_status == A_INSTRUCTION && isalnum(line[i])) {
+      } else if (parsing_status == A_INSTRUCTION) {
         // WARNING Can overflow if the buffer isn't big enough
         // Theorically it should be big enough because of the code in compiler.c
         // Which allocates enough memory for a full line
-        strncat(a_value, &line[i], 1);
+        strncat(a_or_dest_value, &line[i], 1);
 
         // Parse C instructions
       } else if ((parsing_status == FINISHED_VALUE &&
@@ -174,7 +178,7 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
             pointer_to_value_changed = comp->value;
           } else {
             cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap, a_value, symbol_hashmap);
+                    jump_hashmap, a_or_dest_value, symbol_hashmap);
             error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
                   line[i], current_line);
           }
@@ -192,7 +196,7 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
             strcpy(dest->value, "");
           } else if (pointer_to_value_changed != comp->value) {
             cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap, a_value, symbol_hashmap);
+                    jump_hashmap, a_or_dest_value, symbol_hashmap);
             error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
                   line[i], current_line);
           }
@@ -213,7 +217,7 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
             strncat(pointer_to_value_changed, &line[i], 1);
           else {
             cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap, a_value, symbol_hashmap);
+                    jump_hashmap, a_or_dest_value, symbol_hashmap);
             error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
                   line[i], current_line);
           }
@@ -223,7 +227,7 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
         // Unhandled character
       } else {
         cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_value, symbol_hashmap);
+                jump_hashmap, a_or_dest_value, symbol_hashmap);
         error("SYNTAX ", "Unexepected character (%c) on line %zu\n", line[i],
               current_line);
       }
@@ -243,7 +247,7 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
        (jump->validity == true && strcmp(jump->value, "") == 0) ||
        (strcmp(comp->value, "") == 0))) {
     cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap,
-            a_value, symbol_hashmap);
+            a_or_dest_value, symbol_hashmap);
     error("SYNTAX ", "Unexepected character end of line %zu\n", current_line);
   }
 }

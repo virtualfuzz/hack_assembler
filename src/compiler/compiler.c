@@ -16,13 +16,14 @@ void compile_to_file(FILE *input, FILE *output) {
   char *line = NULL;
   size_t buffer_size = 0;
   size_t current_line = 1;
+  size_t instruction_memory_address = 0;
 
   struct hashmap *symbol_hashmap = create_symbol_hashmap();
   struct hashmap *comp_hashmap = create_comp_hashmap();
   struct hashmap *jump_hashmap = create_jump_hashmap();
 
   unsigned long long currently_allocated;
-  char *a_value = NULL;
+  char *a_or_dest_value = NULL;
 
   // Loop though each line
   while ((getline(&line, &buffer_size, input)) != -1) {
@@ -34,32 +35,35 @@ void compile_to_file(FILE *input, FILE *output) {
     // So it doesn't do a buffer overflow check!
     unsigned long long to_allocate;
     if (__builtin_umulll_overflow(sizeof(char), buffer_size, &to_allocate)) {
-      cleanup(input, output, line, NULL, comp_hashmap, jump_hashmap, a_value,
-              symbol_hashmap);
+      cleanup(input, output, line, NULL, comp_hashmap, jump_hashmap,
+              a_or_dest_value, symbol_hashmap);
       error("OVERFLOW ",
             "Current line (%zu) is WAYYYYYY too big (%zu) and will overflow!",
             current_line, buffer_size);
     }
 
     // If we need to allocate more reallocate
-    if (a_value == NULL || currently_allocated < to_allocate) {
-      free(a_value);
-      a_value = (char *)malloc(to_allocate);
+    if (a_or_dest_value == NULL || currently_allocated < to_allocate) {
+      free(a_or_dest_value);
+      a_or_dest_value = (char *)malloc(to_allocate);
       currently_allocated = to_allocate;
     }
 
-    strcpy(a_value, "");
+    strcpy(a_or_dest_value, "");
 
     // C instructions
     struct c_instruction_value dest = {"", false};
     struct c_instruction_value comp = {"", false};
     struct c_instruction_value jump = {"", false};
 
-    parse_line(input, output, line, current_line, &instruction_parsed, a_value,
-               &dest, &comp, &jump, comp_hashmap, jump_hashmap, symbol_hashmap);
+    parse_line(input, output, line, current_line, &instruction_parsed,
+               a_or_dest_value, &dest, &comp, &jump, comp_hashmap, jump_hashmap,
+               symbol_hashmap);
 
-    compile_instruction(input, output, line, instruction_parsed, a_value, dest,
-                        comp, jump, symbol_hashmap, comp_hashmap, jump_hashmap);
+    compile_instruction(input, output, line, instruction_parsed,
+                        a_or_dest_value, dest, comp, jump, symbol_hashmap,
+                        comp_hashmap, jump_hashmap,
+                        &instruction_memory_address);
 
     current_line++;
   }
@@ -67,29 +71,38 @@ void compile_to_file(FILE *input, FILE *output) {
   hashmap_free(symbol_hashmap);
   hashmap_free(comp_hashmap);
   hashmap_free(jump_hashmap);
-  free(a_value);
+  free(a_or_dest_value);
   free(line);
 }
 
 // Compile the parsed instruction into the output file
-void compile_instruction(FILE *assembly_file, FILE *output_file, char *line,
-                         const enum instruction instruction_parsed,
-                         char a_value[], const struct c_instruction_value dest,
-                         struct c_instruction_value comp,
-                         struct c_instruction_value jump,
-                         struct hashmap *symbol_hashmap,
-                         struct hashmap *comp_hashmap,
-                         struct hashmap *jump_hashmap) {
+void compile_instruction(
+    FILE *assembly_file, FILE *output_file, char *line,
+    const enum instruction instruction_parsed, char a_or_dest_value[],
+    const struct c_instruction_value dest, struct c_instruction_value comp,
+    struct c_instruction_value jump, struct hashmap *symbol_hashmap,
+    struct hashmap *comp_hashmap, struct hashmap *jump_hashmap,
+    size_t *instruction_memory_address) {
 
   // TODO: Temporary fix because
   // "Label followed by a declaration is a C23 extension"
   unsigned long a_value_long;
   char *end;
-  
+  char memory_address_to_string[50] = "";
+
   switch (instruction_parsed) {
+  case LABEL:
+    // Get next instruction address
+    // And update the symbol table with it
+    snprintf(memory_address_to_string, 49, "%zu", *instruction_memory_address);
+
+    hashmap_set(symbol_hashmap, &(struct compiled_instruction){
+                                    .original = a_or_dest_value,
+                                    .compiled = memory_address_to_string});
+    break;
   case A_INSTRUCTION:
     // Try to convert to number, if it fails, it's in the symbol table
-    a_value_long = strtoul(a_value, &end, 10);
+    a_value_long = strtoul(a_or_dest_value, &end, 10);
 
     fprintf(output_file, "0");
 
@@ -98,19 +111,20 @@ void compile_instruction(FILE *assembly_file, FILE *output_file, char *line,
       // Check if number is too big since it will overflow if it is bigger
       if (MAX_A_VALUE < a_value_long) {
         cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_value, symbol_hashmap);
+                jump_hashmap, a_or_dest_value, symbol_hashmap);
         error(
             "A INSTRUCTION SIZE ",
             "The value provided in the A instruction will overflow (max value: %i),\n\
 If this value is supposed to be supported in a future Hack version, please report to developer!\n",
-          MAX_A_VALUE);
+            MAX_A_VALUE);
       }
 
       a_instruction_to_binary(output_file, a_value_long);
     } else {
       // a_value is a symbol/label/variable
       const struct compiled_instruction *compiled_a = hashmap_get(
-          symbol_hashmap, &(struct compiled_instruction){.original = a_value});
+          symbol_hashmap,
+          &(struct compiled_instruction){.original = a_or_dest_value});
 
       if (compiled_a != NULL) {
         fprintf(output_file, "%s", compiled_a->compiled);
@@ -118,6 +132,7 @@ If this value is supposed to be supported in a future Hack version, please repor
     }
 
     fprintf(output_file, "\n");
+    (*instruction_memory_address)++;
     break;
   case C_INSTRUCTION:
     fprintf(output_file, "111");
@@ -129,7 +144,7 @@ If this value is supposed to be supported in a future Hack version, please repor
     // Check if comp exists (it needs to)
     if (compiled_comp == NULL) {
       cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-              jump_hashmap, a_value, symbol_hashmap);
+              jump_hashmap, a_or_dest_value, symbol_hashmap);
       error("TYPE ", "invalid comp value (%s) of c instruction", comp.value);
     }
 
@@ -147,7 +162,7 @@ If this value is supposed to be supported in a future Hack version, please repor
       case 'A':
         if (compiled_dest[0] == '1') {
           cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                  jump_hashmap, a_value, symbol_hashmap);
+                  jump_hashmap, a_or_dest_value, symbol_hashmap);
           error("TYPE ",
                 "Got A twice in the dest part of a C instruction (dest = %s)",
                 dest.value);
@@ -158,7 +173,7 @@ If this value is supposed to be supported in a future Hack version, please repor
       case 'D':
         if (compiled_dest[1] == '1') {
           cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                  jump_hashmap, a_value, symbol_hashmap);
+                  jump_hashmap, a_or_dest_value, symbol_hashmap);
           error("TYPE ",
                 "Got D twice in the dest part of a C instruction (dest = %s)",
                 dest.value);
@@ -169,7 +184,7 @@ If this value is supposed to be supported in a future Hack version, please repor
       case 'M':
         if (compiled_dest[2] == '1') {
           cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                  jump_hashmap, a_value, symbol_hashmap);
+                  jump_hashmap, a_or_dest_value, symbol_hashmap);
           error("TYPE ",
                 "Got M twice in the dest part of a C instruction (dest = %s)",
                 dest.value);
@@ -197,17 +212,18 @@ If this value is supposed to be supported in a future Hack version, please repor
     // If jump is invalid
     else {
       cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-              jump_hashmap, a_value, symbol_hashmap);
+              jump_hashmap, a_or_dest_value, symbol_hashmap);
       error("TYPE ", "invalid jump value (%s) of c instruction", jump.value);
     }
 
     fprintf(output_file, "\n");
+    (*instruction_memory_address)++;
     break;
   case NONE:
     break;
   default:
     cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap,
-            a_value, symbol_hashmap);
+            a_or_dest_value, symbol_hashmap);
     error("IMPOSSIBLE", "Pretty much impossible code has been reached");
     break;
   }
