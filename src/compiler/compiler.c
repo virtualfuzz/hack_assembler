@@ -88,13 +88,13 @@ void compile_instruction(
   // "Label followed by a declaration is a C23 extension"
   unsigned long a_value_long;
   char *end;
-  char memory_address_to_string[50] = "";
+  char memory_address_to_string[11] = "";
 
   switch (instruction_parsed) {
   case LABEL:
     // Get next instruction address
     // And update the symbol table with it
-    snprintf(memory_address_to_string, 49, "%zu", *instruction_memory_address);
+    snprintf(memory_address_to_string, 10, "%zu", *instruction_memory_address);
 
     hashmap_set(symbol_hashmap, &(struct compiled_instruction){
                                     .original = a_or_dest_value,
