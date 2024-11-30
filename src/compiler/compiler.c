@@ -104,8 +104,6 @@ void compile_instruction(FILE *assembly_file, FILE *output_file, char *line,
             "The value provided in the A instruction will overflow (max value: %i),\n\
 If this value is supposed to be supported in a future Hack version, please report to developer!\n",
           MAX_A_VALUE);
-          MAX_A_VALUE);
-            MAX_A_VALUE);
       }
 
       a_instruction_to_binary(output_file, a_value_long);
