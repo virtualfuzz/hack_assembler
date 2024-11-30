@@ -6,7 +6,7 @@
 void compile_to_file(FILE *input, FILE *output);
 void compile_instruction(FILE *assembly_file, FILE *output_file, char *line,
                          const enum instruction instruction_parsed,
-                         char a_or_dest_value[],
+                         char a_or_label_value[],
                          const struct c_instruction_value dest,
                          const struct c_instruction_value comp,
                          const struct c_instruction_value jump,
