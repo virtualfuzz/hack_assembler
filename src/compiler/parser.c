@@ -176,7 +176,8 @@ If this value is supposed to be supported in a future Hack version, please repor
             comp->validity = true;
             pointer_to_value_changed = comp->value;
           } else {
-            cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+            cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+                    jump_hashmap);
             error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
                   line[i], current_line);
           }
@@ -186,10 +187,15 @@ If this value is supposed to be supported in a future Hack version, please repor
         case ';':
           // if the current value is dest (we are assuming it's dest at the
           // start) then the actual one is comp since we encountered a ;
-          if (pointer_to_value_changed == dest->value)
-            comp = dest;
-          else if (pointer_to_value_changed != comp->value) {
-            cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+          if (pointer_to_value_changed == dest->value) {
+            strcpy(comp->value, dest->value);
+            comp->validity = true;
+
+            dest->validity = false;
+            strcpy(dest->value, "");
+          } else if (pointer_to_value_changed != comp->value) {
+            cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+                    jump_hashmap);
             error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
                   line[i], current_line);
           }
@@ -231,8 +237,11 @@ If this value is supposed to be supported in a future Hack version, please repor
 
   // Make sure dest, jump and comp is set correctly
   // (if they are valid they MUST contain something)
-  if ((dest->validity == true && strcmp(dest->value, "") == 0) ||
-      (jump->validity == true && strcmp(jump->value, "") == 0) ||
+
+  // make sure we are a c instruction
+  if ((*instruction_parsed == C_INSTRUCTION) &&
+      ((dest->validity == true && strcmp(dest->value, "") == 0) ||
+       (jump->validity == true && strcmp(jump->value, "") == 0) ||
       (comp->validity == true && strcmp(comp->value, "") == 0)) {
     cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
     error("SYNTAX ", "Unexepected character end of line %zu\n", current_line);

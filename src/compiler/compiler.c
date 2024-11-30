@@ -90,20 +90,14 @@ If this value is supposed to be supported in a future Hack version, please repor
     const struct compiled_instruction *compiled_comp = hashmap_get(
         comp_hashmap, &(struct compiled_instruction){.original = comp.value});
 
-    // If comp exists and is valid
-    if (compiled_comp != NULL)
-      fprintf(output_file, "%s", compiled_comp->compiled);
-
-    // If comp is empty
-    else if (strcmp(comp.value, "") == 0)
-      fprintf(output_file, "0000000");
-
-    // Comp is set to something but we found nothing so it's invalid
-    else {
+    // Check if comp exists (it needs to)
+    if (compiled_comp == NULL) {
       cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
               jump_hashmap);
       error("TYPE ", "invalid comp value (%s) of c instruction", comp.value);
     }
+
+    fprintf(output_file, "%s", compiled_comp->compiled);
 
     // Compile dest part
 
