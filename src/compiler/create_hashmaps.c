@@ -81,6 +81,43 @@ struct hashmap *create_jump_hashmap() {
   return jump_hashmap;
 }
 
+struct hashmap *create_symbol_hashmap() {
+  struct hashmap *symbol_hashmap =
+      hashmap_new(sizeof(struct compiled_instruction), 0, 0, 0,
+                  instruction_hash, instruction_compare, NULL, NULL);
+
+  // how about we precompile it to be empty
+  struct compiled_instruction symbol_values[] = {
+      {.original = "SP", .compiled = "000000000000000"},     // 0
+      {.original = "LCL", .compiled = "000000000000001"},    // 1
+      {.original = "ARG", .compiled = "000000000000010"},    // 2
+      {.original = "THIS", .compiled = "000000000000011"},   // 3
+      {.original = "THAT", .compiled = "000000000000100"},   // 4
+      {.original = "R0", .compiled = "000000000000000"},     // 0
+      {.original = "R1", .compiled = "000000000000001"},     // 1
+      {.original = "R2", .compiled = "000000000000010"},     // 2
+      {.original = "R3", .compiled = "000000000000011"},     // 3
+      {.original = "R4", .compiled = "000000000000100"},     // 4
+      {.original = "R5", .compiled = "000000000000101"},     // 5
+      {.original = "R6", .compiled = "000000000000110"},     // 6
+      {.original = "R7", .compiled = "000000000000111"},     // 7
+      {.original = "R8", .compiled = "000000000001000"},     // 8
+      {.original = "R9", .compiled = "000000000001001"},     // 9
+      {.original = "R10", .compiled = "000000000001010"},    // 10
+      {.original = "R11", .compiled = "000000000001011"},    // 11
+      {.original = "R12", .compiled = "000000000001100"},    // 12
+      {.original = "R13", .compiled = "000000000001101"},    // 13
+      {.original = "R14", .compiled = "000000000001110"},    // 14
+      {.original = "R15", .compiled = "000000000001111"},    // 15
+      {.original = "SCREEN", .compiled = "100000000000000"}, // 16384
+      {.original = "KBD", .compiled = "110000000000000"}};   // 24576
+
+  unsigned short array_size = sizeof(symbol_values) / sizeof(symbol_values[0]);
+  add_hashmap_values(symbol_hashmap, symbol_values, array_size);
+
+  return symbol_hashmap;
+}
+
 void add_hashmap_values(struct hashmap *map,
                         struct compiled_instruction items[],
                         unsigned short array_size) {

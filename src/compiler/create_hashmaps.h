@@ -9,3 +9,4 @@ struct compiled_instruction {
 
 struct hashmap *create_comp_hashmap();
 struct hashmap *create_jump_hashmap();
+struct hashmap *create_symbol_hashmap();

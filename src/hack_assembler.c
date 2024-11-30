@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
   // Finally start compiling
   compile_to_file(assembly_file, output_file);
 
-  cleanup(assembly_file, output_file, NULL, NULL, NULL, NULL);
+  cleanup(assembly_file, output_file, NULL, NULL, NULL, NULL, NULL, NULL);
   exit(EXIT_SUCCESS);
 }
 
@@ -43,7 +43,8 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
 
     *output_filename = (char *)malloc(allocation_size);
     if (*output_filename == NULL) {
-      cleanup(assembly_file, NULL, NULL, *output_filename, NULL, NULL);
+      cleanup(assembly_file, NULL, NULL, *output_filename, NULL, NULL, NULL,
+              NULL);
       error("MEMORY ",
             "Failed to allocate %zu bytes for hack_save_file string\n",
             allocation_size);
@@ -71,7 +72,8 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
 
   // If file already exists and we allow overwriting
   if (access(*output_filename, F_OK) != -1 && force == false) {
-    cleanup(assembly_file, NULL, NULL, *output_filename, NULL, NULL);
+    cleanup(assembly_file, NULL, NULL, *output_filename, NULL, NULL, NULL,
+            NULL);
     error("FILE ",
           "%s already exists, use the --force flag to overwrite file\n",
           *output_filename);
@@ -80,7 +82,8 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
   // Create compiled code file
   *write_to = fopen(*output_filename, "w");
   if (*write_to == NULL) {
-    cleanup(assembly_file, *write_to, NULL, *output_filename, NULL, NULL);
+    cleanup(assembly_file, *write_to, NULL, *output_filename, NULL, NULL, NULL,
+            NULL);
     error("FILE ",
           "Failed to create file %s maybe a directory doesn't exist...",
           *output_filename);

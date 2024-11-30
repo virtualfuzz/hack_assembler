@@ -12,10 +12,10 @@ extern const int MAX_A_VALUE;
 // Set instruction_parsed, a_value, dest, comp, and jump
 void parse_line(FILE *assembly_file, FILE *output_file, char *line,
                 const size_t current_line, enum instruction *instruction_parsed,
-                char a_value[], struct c_instruction_value *dest,
+                char *a_value, struct c_instruction_value *dest,
                 struct c_instruction_value *comp,
                 struct c_instruction_value *jump, struct hashmap *comp_hashmap,
-                struct hashmap *jump_hashmap) {
+                struct hashmap *jump_hashmap, struct hashmap *symbol_hashmap) {
 
   // What we are currently doing in the line
   enum instruction parsing_status = NONE;
@@ -36,7 +36,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
 
         pointer_to_value_changed = a_value;
       } else {
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+                jump_hashmap, a_value, symbol_hashmap);
         error("SYNTAX ", "Unexpected @ at line %zu\n", current_line);
       };
       break;
@@ -48,7 +49,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
         parsing_status = LABEL;
         *instruction_parsed = LABEL;
       } else {
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+                jump_hashmap, a_value, symbol_hashmap);
         error("SYNTAX ", "Unexpected ( at line %zu\n", current_line);
       }
       break;
@@ -56,7 +58,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
       if (parsing_status == LABEL || parsing_status == FINISHED_VALUE) {
         parsing_status = FINISHED_INSTRUCTION;
       } else {
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+                jump_hashmap, a_value, symbol_hashmap);
         error("SYNTAX ", "Unexpected ) at line %zu\n", current_line);
       }
       break;
@@ -86,7 +89,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
 
         __attribute__((fallthrough));
       default:
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+                jump_hashmap, a_value, symbol_hashmap);
         error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
               current_line);
       }
@@ -115,23 +119,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
 
     // Handle other characters (mostly appending it the current value)
     default:
-      // A instructions
-      if (parsing_status == A_INSTRUCTION && isdigit(line[i])) {
-        // Max size of A instruction (since it can overflow since we are using
-        // 15 bytes to represent the number)
-        if (4 < strlen(pointer_to_value_changed)) {
-          cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
-          error(
-              "A INSTRUCTION SIZE ",
-              "The value provided in the A instruction will overflow (max value: %i),\n\
-If this value is supposed to be supported in a future Hack version, please report to developer!\n",
-              MAX_A_VALUE);
-        }
-
-        strncat(a_value, &line[i], 1);
-
-        // This part of the code allows for spacing like @      19 or MD =  0
-      } else if (isspace(line[i])) {
+      // This part of the code allows for spacing like @      19 or MD =  0
+      if (isspace(line[i])) {
         // Make sure we at least wrote something
         // before trying to set it to finished value
         if (pointer_to_value_changed != NULL &&
@@ -149,7 +138,8 @@ If this value is supposed to be supported in a future Hack version, please repor
             parsing_status = FINISHED_VALUE;
             break;
           case SLASH_ONE:
-            cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+            cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+                    jump_hashmap, a_value, symbol_hashmap);
             error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
                   current_line);
             break;
@@ -160,6 +150,13 @@ If this value is supposed to be supported in a future Hack version, please repor
             break;
           }
         }
+
+        // Parse A instruction
+      } else if (parsing_status == A_INSTRUCTION && isalnum(line[i])) {
+        // WARNING Can overflow if the buffer isn't big enough
+        // Theorically it should be big enough because of the code in compiler.c
+        // Which allocates enough memory for a full line
+        strncat(a_value, &line[i], 1);
 
         // Parse C instructions
       } else if ((parsing_status == FINISHED_VALUE &&
@@ -177,7 +174,7 @@ If this value is supposed to be supported in a future Hack version, please repor
             pointer_to_value_changed = comp->value;
           } else {
             cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap);
+                    jump_hashmap, a_value, symbol_hashmap);
             error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
                   line[i], current_line);
           }
@@ -195,7 +192,7 @@ If this value is supposed to be supported in a future Hack version, please repor
             strcpy(dest->value, "");
           } else if (pointer_to_value_changed != comp->value) {
             cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap);
+                    jump_hashmap, a_value, symbol_hashmap);
             error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
                   line[i], current_line);
           }
@@ -215,7 +212,8 @@ If this value is supposed to be supported in a future Hack version, please repor
               strlen(pointer_to_value_changed) < 3)
             strncat(pointer_to_value_changed, &line[i], 1);
           else {
-            cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+            cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+                    jump_hashmap, a_value, symbol_hashmap);
             error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
                   line[i], current_line);
           }
@@ -224,7 +222,8 @@ If this value is supposed to be supported in a future Hack version, please repor
 
         // Unhandled character
       } else {
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
+                jump_hashmap, a_value, symbol_hashmap);
         error("SYNTAX ", "Unexepected character (%c) on line %zu\n", line[i],
               current_line);
       }
@@ -242,8 +241,9 @@ If this value is supposed to be supported in a future Hack version, please repor
   if ((*instruction_parsed == C_INSTRUCTION) &&
       ((dest->validity == true && strcmp(dest->value, "") == 0) ||
        (jump->validity == true && strcmp(jump->value, "") == 0) ||
-      (comp->validity == true && strcmp(comp->value, "") == 0)) {
-    cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap);
+       (strcmp(comp->value, "") == 0))) {
+    cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap,
+            a_value, symbol_hashmap);
     error("SYNTAX ", "Unexepected character end of line %zu\n", current_line);
   }
 }

@@ -5,7 +5,7 @@
 // Clean up memory/opened files
 void cleanup(FILE *assembly_file, FILE *output_file, char *line,
              char *output_filename, struct hashmap *comp_hashmap,
-             struct hashmap *jump_hashmap) {
+             struct hashmap *jump_hashmap, char *a_value, struct hashmap *symbol_hashmap) {
   if (assembly_file != NULL)
     fclose(assembly_file);
 
@@ -15,6 +15,9 @@ void cleanup(FILE *assembly_file, FILE *output_file, char *line,
   if (line != NULL)
     free(line);
 
+  if (a_value != NULL)
+    free(a_value);
+
   if (output_filename != NULL)
     free(output_filename);
 
@@ -23,6 +26,9 @@ void cleanup(FILE *assembly_file, FILE *output_file, char *line,
 
   if (jump_hashmap != NULL)
     hashmap_free(jump_hashmap);
+
+  if (symbol_hashmap != NULL)
+    hashmap_free(symbol_hashmap);
 }
 
 // You should run cleanup() to free memory and files
