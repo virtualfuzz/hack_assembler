@@ -1,3 +1,6 @@
 [submodule "hashmap.c"]
 	path = hashmap.c
 	url = git@github.com:tidwall/hashmap.c.git
+[submodule "c-array-list"]
+	path = c-array-list
+	url = git@codeberg.org:Jayden295/c-array-list.git
