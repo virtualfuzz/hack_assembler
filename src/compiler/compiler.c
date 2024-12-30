@@ -1,26 +1,44 @@
 #include "compiler.h"
-#include "../helpers.h"
 #include "create_hashmaps.h"
+#include "hashmap.h"
 #include <stdlib.h>
 #include <string.h>
 
 // Implements compiler related functions
 // Including the compile_to_file which takes a file and
 // outputs the compiled file on another
+void to_binary(char *dest, unsigned short n);
+
+struct symbol {
+  long location;
+  char *a_or_label_value;
+};
+
 const unsigned int MAX_A_VALUE = 32767;
 
-// Loop though every line in the file
-// Then parse it
-// Then compile it
-void compile_to_file(FILE *input, FILE *output) {
+// Compiles an input file to an output file
+// First pass
+// if a instruction
+//    known symbol => just compiile it
+//    unknown symbol => rememeber this place/symbol and come back later
+// if label => update symbol table
+
+// Second pass
+// for every a instruction not compiled =>
+//    if found in symbol table => compile it using the saved place/symbol
+//    if unknown => new variable starting at position 16
+bool compile_to_file(FILE *input, FILE *output) {
+  bool success = true;
   char *line = NULL;
   size_t buffer_size = 0;
   size_t current_line = 1;
-  size_t instruction_memory_address = 0;
+  unsigned short instruction_memory_address = 0;
 
-  struct hashmap *symbol_hashmap = create_symbol_hashmap();
+  struct hashmap *predefined_hashmap = create_predefined_hashmap();
+  struct hashmap *symbol_hashmap = create_empty_compiled_hashmap();
   struct hashmap *comp_hashmap = create_comp_hashmap();
   struct hashmap *jump_hashmap = create_jump_hashmap();
+  struct array_list unhandled_symbols = array_list_create(50);
 
   unsigned long long currently_allocated;
   char *a_or_label_value = NULL;
@@ -30,22 +48,24 @@ void compile_to_file(FILE *input, FILE *output) {
     // Initialise the values we are going to parse
     enum instruction instruction_parsed = NONE;
 
-    // WARNING This code allocates enough memory for the full line
-    // The code in parse_line assumes that a_value is big enough
-    // So it doesn't do a buffer overflow check!
     unsigned long long to_allocate;
     if (__builtin_umulll_overflow(sizeof(char), buffer_size, &to_allocate)) {
-      cleanup(input, output, line, NULL, comp_hashmap, jump_hashmap,
-              a_or_label_value, symbol_hashmap);
-      error("OVERFLOW ",
-            "Current line (%zu) is WAYYYYYY too big (%zu) and will overflow!",
-            current_line, buffer_size);
+      printf("Line %zu is way too big (%zu) and will overflow\n", current_line,
+             buffer_size);
+      success = false;
+      break;
     }
 
     // If we need to allocate more reallocate
     if (a_or_label_value == NULL || currently_allocated < to_allocate) {
       free(a_or_label_value);
       a_or_label_value = (char *)malloc(to_allocate);
+      if (a_or_label_value == NULL) {
+        perror("Error while allocating memory for a_or_label_value:");
+        success = false;
+        break;
+      }
+
       currently_allocated = to_allocate;
     }
 
@@ -56,49 +76,84 @@ void compile_to_file(FILE *input, FILE *output) {
     struct c_instruction_value comp = {"", false};
     struct c_instruction_value jump = {"", false};
 
-    parse_line(input, output, line, current_line, &instruction_parsed,
-               a_or_label_value, &dest, &comp, &jump, comp_hashmap, jump_hashmap,
-               symbol_hashmap);
+    if (parse_line(line, &instruction_parsed, a_or_label_value, &dest, &comp,
+                   &jump) != true) {
+      printf("at line %zu\n", current_line);
+      success = false;
+      break;
+    };
 
-    compile_instruction(input, output, line, instruction_parsed,
-                        a_or_label_value, dest, comp, jump, symbol_hashmap,
-                        comp_hashmap, jump_hashmap,
-                        &instruction_memory_address);
+    if (compile_instruction(output, instruction_parsed, a_or_label_value, dest,
+                            comp, jump, predefined_hashmap, comp_hashmap,
+                            jump_hashmap, &instruction_memory_address,
+                            &unhandled_symbols, symbol_hashmap) != true) {
+      printf("at line %zu\n", current_line);
+      success = false;
+      break;
+    };
 
     current_line++;
   }
 
-  hashmap_free(symbol_hashmap);
-  hashmap_free(comp_hashmap);
-  hashmap_free(jump_hashmap);
-  free(a_or_label_value);
-  free(line);
+  // Compile unhandled symbols
+  while (unhandled_symbols.length != 0) {
+    struct symbol *unhandled = array_list_get(unhandled_symbols, 0);
+    const struct compiled_instruction *compiled = hashmap_get(
+        symbol_hashmap, &(struct compiled_instruction){
+                            .original = unhandled->a_or_label_value});
+
+    // Compile unhandled symbol
+    fseek(output, unhandled->location, SEEK_SET);
+    if (compiled != NULL)
+      fprintf(output, "%s\n", compiled->compiled);
+
+    // Free it/Remove it
+    free(unhandled->a_or_label_value);
+    free(unhandled);
+    array_list_remove(&unhandled_symbols, 0);
+  }
+
+  // Loop over each symbol in the hashmap to free it
+  size_t iter = 0;
+  void *item;
+  while (hashmap_iter(symbol_hashmap, &iter, &item)) {
+    struct compiled_instruction *symbol = item;
+    free(symbol->compiled);
+    free(symbol->original);
+  }
+
+  cleanup(NULL, NULL, line, NULL, comp_hashmap, jump_hashmap, a_or_label_value,
+          predefined_hashmap, &unhandled_symbols, symbol_hashmap);
+  return success;
 }
 
 // Compile the parsed instruction into the output file
-void compile_instruction(
-    FILE *assembly_file, FILE *output_file, char *line,
-    const enum instruction instruction_parsed, char a_or_label_value[],
-    const struct c_instruction_value dest, struct c_instruction_value comp,
-    struct c_instruction_value jump, struct hashmap *symbol_hashmap,
-    struct hashmap *comp_hashmap, struct hashmap *jump_hashmap,
-    size_t *instruction_memory_address) {
+bool compile_instruction(
+    FILE *output_file, const enum instruction instruction_parsed,
+    char a_or_label_value[], struct c_instruction_value dest,
+    struct c_instruction_value comp, struct c_instruction_value jump,
+    struct hashmap *predefined_hashmap, struct hashmap *comp_hashmap,
+    struct hashmap *jump_hashmap, unsigned short *instruction_memory_address,
+    struct array_list *unhandled_symbols, struct hashmap *symbol_hashmap) {
 
   // TODO: Temporary fix because
   // "Label followed by a declaration is a C23 extension"
   unsigned long a_value_long;
   char *end;
-  char memory_address_to_string[11] = "";
+  char *compiled;
+  struct compiled_instruction *label;
 
   switch (instruction_parsed) {
   case LABEL:
-    // Get next instruction address
-    // And update the symbol table with it
-    snprintf(memory_address_to_string, 10, "%zu", *instruction_memory_address);
+    // Compile the memory address
+    compiled = malloc(sizeof(char) * 16);
+    strcpy(compiled, "");
+    to_binary(compiled, *instruction_memory_address);
 
+    // Put it inside of the symbol hashmap
     hashmap_set(symbol_hashmap, &(struct compiled_instruction){
-                                    .original = a_or_label_value,
-                                    .compiled = memory_address_to_string});
+                                    .original = strdup(a_or_label_value),
+                                    .compiled = compiled});
     break;
   case A_INSTRUCTION:
     // Try to convert to number, if it fails, it's in the symbol table
@@ -106,31 +161,55 @@ void compile_instruction(
 
     fprintf(output_file, "0");
 
-    // If the a_value is a memory address
+    // If the a_value is a memory address (number)
     if (!*end) {
       // Check if number is too big since it will overflow if it is bigger
       if (MAX_A_VALUE < a_value_long) {
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_or_label_value, symbol_hashmap);
-        error(
-            "A INSTRUCTION SIZE ",
-            "The value provided in the A instruction will overflow (max value: %i),\n\
-If this value is supposed to be supported in a future Hack version, please report to developer!\n",
-            MAX_A_VALUE);
+        printf("ERROR: The value provided in the A instruction will overflow "
+               "(max value: %i)\n If this value is supposed to be supported, "
+               "please report this as a bug!",
+               MAX_A_VALUE);
+        return false;
       }
 
-      a_instruction_to_binary(output_file, a_value_long);
+      // Convert the number to binary
+      char output[15] = "";
+      to_binary(output, a_value_long);
+      fprintf(output_file, "%s", output);
     } else {
       // a_value is a symbol/label/variable
-      const struct compiled_instruction *compiled_a = hashmap_get(
-          symbol_hashmap,
+
+      // Query the precompiled hashmap
+      const struct compiled_instruction *precompiled_a = hashmap_get(
+          predefined_hashmap,
           &(struct compiled_instruction){.original = a_or_label_value});
 
-      if (compiled_a != NULL) {
-        fprintf(output_file, "%s", compiled_a->compiled);
+      if (precompiled_a != NULL)
+        fprintf(output_file, "%s", precompiled_a->compiled);
+      else {
+        // Not in precompiled hashmap, search the symbol hashmap
+        const struct compiled_instruction *compiled_a = hashmap_get(
+            symbol_hashmap,
+            &(struct compiled_instruction){.original = a_or_label_value});
+
+        if (compiled_a != NULL)
+          fprintf(output_file, "%s", compiled_a->compiled);
+        else {
+          // Symbol not found in precompiled/symbol hashmap
+          // Must be a variable/label that was not found yet
+          struct symbol *symbol_malloc = malloc(sizeof(struct symbol));
+          symbol_malloc->a_or_label_value = strdup(a_or_label_value);
+          symbol_malloc->location = ftell(output_file);
+
+          array_list_push(unhandled_symbols, symbol_malloc);
+
+          // Notice: Workaround since otherise we overwrite the other lines
+          fprintf(output_file, "               ");
+        }
       }
     }
 
+    // Update instruction memory address
     fprintf(output_file, "\n");
     (*instruction_memory_address)++;
     break;
@@ -143,15 +222,13 @@ If this value is supposed to be supported in a future Hack version, please repor
 
     // Check if comp exists (it needs to)
     if (compiled_comp == NULL) {
-      cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-              jump_hashmap, a_or_label_value, symbol_hashmap);
-      error("TYPE ", "invalid comp value (%s) of c instruction", comp.value);
+      printf("ERROR: Unknown comp value (%s) of C instruction", comp.value);
+      return false;
     }
 
     fprintf(output_file, "%s", compiled_comp->compiled);
 
     // Compile dest part
-
     // Assumes that the parser made sure that the dest.value isn't longer then 3
     const unsigned short dest_size = strlen(dest.value);
     char compiled_dest[] = "000";
@@ -161,33 +238,30 @@ If this value is supposed to be supported in a future Hack version, please repor
       switch (dest.value[i]) {
       case 'A':
         if (compiled_dest[0] == '1') {
-          cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                  jump_hashmap, a_or_label_value, symbol_hashmap);
-          error("TYPE ",
-                "Got A twice in the dest part of a C instruction (dest = %s)",
-                dest.value);
+          printf("ERROR: Got A twice in the dest part of a C instruction "
+                 "(dest: %s)",
+                 dest.value);
+          return false;
         }
 
         compiled_dest[0] = '1';
         break;
       case 'D':
         if (compiled_dest[1] == '1') {
-          cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                  jump_hashmap, a_or_label_value, symbol_hashmap);
-          error("TYPE ",
-                "Got D twice in the dest part of a C instruction (dest = %s)",
-                dest.value);
+          printf("ERROR: Got D twice in the dest part of a C instruction "
+                 "(dest: %s)",
+                 dest.value);
+          return false;
         }
 
         compiled_dest[1] = '1';
         break;
       case 'M':
         if (compiled_dest[2] == '1') {
-          cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                  jump_hashmap, a_or_label_value, symbol_hashmap);
-          error("TYPE ",
-                "Got M twice in the dest part of a C instruction (dest = %s)",
-                dest.value);
+          printf("ERROR: Got M twice in the dest part of a C instruction "
+                 "(dest: %s)",
+                 dest.value);
+          return false;
         }
 
         compiled_dest[2] = '1';
@@ -211,9 +285,8 @@ If this value is supposed to be supported in a future Hack version, please repor
 
     // If jump is invalid
     else {
-      cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-              jump_hashmap, a_or_label_value, symbol_hashmap);
-      error("TYPE ", "invalid jump value (%s) of c instruction", jump.value);
+      printf("ERROR: Unknown jump value (%s) in C instruction", jump.value);
+      return false;
     }
 
     fprintf(output_file, "\n");
@@ -222,16 +295,17 @@ If this value is supposed to be supported in a future Hack version, please repor
   case NONE:
     break;
   default:
-    cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap,
-            a_or_label_value, symbol_hashmap);
-    error("IMPOSSIBLE", "Pretty much impossible code has been reached");
-    break;
+    printf("IMPOSSIBLE ERROR: Code that should be impossible to reach has been "
+           "reached");
+    return false;
   }
+
+  return true;
 }
 
 // Convert to binary and send to stream
 // A instruction specific since we also print the zeros
-void a_instruction_to_binary(FILE *stream, unsigned short n) {
+void to_binary(char *dest, unsigned short n) {
   // Initialise the a instruction value to 0 (this way we print the whole thing
   // instead)
   unsigned short binary_num[15] = {0};
@@ -246,6 +320,10 @@ void a_instruction_to_binary(FILE *stream, unsigned short n) {
 
   // Print the entirety of the binary_num into the stream (it's in reverse order
   // tho)
-  for (short j = 14; j >= 0; j--)
-    fprintf(stream, "%d", binary_num[j]);
+  char temp[2] = ""; // One character string
+
+  for (short j = 14; j >= 0; j--) {
+    snprintf(temp, 2, "%d", binary_num[j]);
+    strcat(dest, temp);
+  }
 }

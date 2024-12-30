@@ -18,9 +18,7 @@ struct c_instruction_value {
   bool validity;
 };
 
-void parse_line(FILE *assembly_file, FILE *output_file, char *line,
-                const size_t current_line, enum instruction *instruction_parsed,
+bool parse_line(char *line, enum instruction *instruction_parsed,
                 char *a_or_label_value, struct c_instruction_value *dest,
                 struct c_instruction_value *comp,
-                struct c_instruction_value *jump, struct hashmap *comp_hashmap,
-                struct hashmap *jump_hashmap, struct hashmap *symbol_hashmap);
+                struct c_instruction_value *jump);

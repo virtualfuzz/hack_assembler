@@ -19,10 +19,13 @@ uint64_t instruction_hash(const void *item, uint64_t seed0, uint64_t seed1) {
   return hashmap_sip(user->original, strlen(user->original), seed0, seed1);
 }
 
+struct hashmap *create_empty_compiled_hashmap() {
+    return  hashmap_new(sizeof(struct compiled_instruction), 0, 0, 0,
+                    instruction_hash, instruction_compare, NULL, NULL);
+}
+
 struct hashmap *create_comp_hashmap() {
-  struct hashmap *comp_hashmap =
-      hashmap_new(sizeof(struct compiled_instruction), 0, 0, 0,
-                  instruction_hash, instruction_compare, NULL, NULL);
+  struct hashmap *comp_hashmap = create_empty_compiled_hashmap();
 
   struct compiled_instruction comp_values[] = {
       {.original = "0", .compiled = "0101010"},
@@ -61,9 +64,8 @@ struct hashmap *create_comp_hashmap() {
 }
 
 struct hashmap *create_jump_hashmap() {
-  struct hashmap *jump_hashmap =
-      hashmap_new(sizeof(struct compiled_instruction), 0, 0, 0,
-                  instruction_hash, instruction_compare, NULL, NULL);
+  struct hashmap *jump_hashmap =create_empty_compiled_hashmap();
+
 
   struct compiled_instruction jump_values[] = {
       {.original = "JGT", .compiled = "001"},
@@ -81,12 +83,10 @@ struct hashmap *create_jump_hashmap() {
   return jump_hashmap;
 }
 
-struct hashmap *create_symbol_hashmap() {
-  struct hashmap *symbol_hashmap =
-      hashmap_new(sizeof(struct compiled_instruction), 0, 0, 0,
-                  instruction_hash, instruction_compare, NULL, NULL);
+struct hashmap *create_predefined_hashmap() {
+  struct hashmap *symbol_hashmap = create_empty_compiled_hashmap();
 
-  // how about we precompile it to be empty
+  // Initialise the hashmap with these values
   struct compiled_instruction symbol_values[] = {
       {.original = "SP", .compiled = "000000000000000"},     // 0
       {.original = "LCL", .compiled = "000000000000001"},    // 1
@@ -121,7 +121,5 @@ struct hashmap *create_symbol_hashmap() {
 void add_hashmap_values(struct hashmap *map,
                         struct compiled_instruction items[],
                         unsigned short array_size) {
-  for (size_t i = 0; i < array_size; i++) {
-    hashmap_set(map, &items[i]);
-  }
+  for (size_t i = 0; i < array_size; i++) hashmap_set(map, &items[i]);
 }

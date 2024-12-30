@@ -6,6 +6,7 @@
 void cleanup(FILE *assembly_file, FILE *output_file, char *line,
              char *output_filename, struct hashmap *comp_hashmap,
              struct hashmap *jump_hashmap, char *a_or_label_value,
+             struct hashmap *predefined_hashmap, struct array_list *array,
              struct hashmap *symbol_hashmap) {
   if (assembly_file != NULL)
     fclose(assembly_file);
@@ -27,6 +28,12 @@ void cleanup(FILE *assembly_file, FILE *output_file, char *line,
 
   if (jump_hashmap != NULL)
     hashmap_free(jump_hashmap);
+
+  if (predefined_hashmap != NULL)
+    hashmap_free(predefined_hashmap);
+
+  if (array != NULL)
+    array_list_free(array);
 
   if (symbol_hashmap != NULL)
     hashmap_free(symbol_hashmap);

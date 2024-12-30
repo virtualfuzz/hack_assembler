@@ -1,5 +1,4 @@
 #include "parser.h"
-#include "../helpers.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,12 +9,10 @@ extern const int MAX_A_VALUE;
 
 // Loop though each character in line and parse instruction
 // Set instruction_parsed, a_value, dest, comp, and jump
-void parse_line(FILE *assembly_file, FILE *output_file, char *line,
-                const size_t current_line, enum instruction *instruction_parsed,
+bool parse_line(char *line, enum instruction *instruction_parsed, // currentline may be removed
                 char *a_or_label_value, struct c_instruction_value *dest,
                 struct c_instruction_value *comp,
-                struct c_instruction_value *jump, struct hashmap *comp_hashmap,
-                struct hashmap *jump_hashmap, struct hashmap *symbol_hashmap) {
+                struct c_instruction_value *jump) {
 
   // What we are currently doing in the line
   enum instruction parsing_status = NONE;
@@ -36,9 +33,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
 
         pointer_to_value_changed = a_or_label_value;
       } else {
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_or_label_value, symbol_hashmap);
-        error("SYNTAX ", "Unexpected @ at line %zu\n", current_line);
+        printf("SYNTAX: Unexpected character @");
+        return false;
       };
       break;
 
@@ -49,18 +45,16 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
         parsing_status = LABEL;
         *instruction_parsed = LABEL;
       } else {
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_or_label_value, symbol_hashmap);
-        error("SYNTAX ", "Unexpected ( at line %zu\n", current_line);
+        printf("SYNTAX: Unexpected character (");
+        return false;
       }
       break;
     case ')':
       if (parsing_status == LABEL || parsing_status == FINISHED_VALUE) {
         parsing_status = FINISHED_INSTRUCTION;
       } else {
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_or_label_value, symbol_hashmap);
-        error("SYNTAX ", "Unexpected ) at line %zu\n", current_line);
+        printf("SYNTAX: Unexpected character )");
+        return false;
       }
       break;
 
@@ -89,10 +83,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
 
         __attribute__((fallthrough));
       default:
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_or_label_value, symbol_hashmap);
-        error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
-              current_line);
+        printf("SYNTAX: Unexpected character (%c)", line[i]);
+        return false;
       }
       break;
 
@@ -138,11 +130,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
             parsing_status = FINISHED_VALUE;
             break;
           case SLASH_ONE:
-            cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap, a_or_label_value, symbol_hashmap);
-            error("SYNTAX ", "Unexpected character (%c) on line %zu\n", line[i],
-                  current_line);
-            break;
+            printf("SYNTAX: Unexpected character (%c)", line[i]);
+            return false;
           case NONE:
           case FINISHED_VALUE:
           case FINISHED_INSTRUCTION:
@@ -177,10 +166,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
             comp->validity = true;
             pointer_to_value_changed = comp->value;
           } else {
-            cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap, a_or_label_value, symbol_hashmap);
-            error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
-                  line[i], current_line);
+            printf("SYNTAX: Unexpected character (%c)", line[i]);
+            return false;
           }
           break;
 
@@ -195,10 +182,8 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
             dest->validity = false;
             strcpy(dest->value, "");
           } else if (pointer_to_value_changed != comp->value) {
-            cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap, a_or_label_value, symbol_hashmap);
-            error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
-                  line[i], current_line);
+            printf("SYNTAX: Unexpected character (%c)", line[i]);
+            return false;
           }
 
           parsing_status = C_INSTRUCTION;
@@ -216,20 +201,16 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
               strlen(pointer_to_value_changed) < 3)
             strncat(pointer_to_value_changed, &line[i], 1);
           else {
-            cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                    jump_hashmap, a_or_label_value, symbol_hashmap);
-            error("SYNTAX ", "Unexepected character (%c) on line %zu\n",
-                  line[i], current_line);
+            printf("SYNTAX: Unexpected character (%c)", line[i]);
+            return false;
           }
           break;
         }
 
         // Unhandled character
       } else {
-        cleanup(assembly_file, output_file, line, NULL, comp_hashmap,
-                jump_hashmap, a_or_label_value, symbol_hashmap);
-        error("SYNTAX ", "Unexepected character (%c) on line %zu\n", line[i],
-              current_line);
+        printf("SYNTAX: Unexpected character (%c)", line[i]);
+        return false;
       }
     }
 
@@ -246,8 +227,9 @@ void parse_line(FILE *assembly_file, FILE *output_file, char *line,
       ((dest->validity == true && strcmp(dest->value, "") == 0) ||
        (jump->validity == true && strcmp(jump->value, "") == 0) ||
        (strcmp(comp->value, "") == 0))) {
-    cleanup(assembly_file, output_file, line, NULL, comp_hashmap, jump_hashmap,
-            a_or_label_value, symbol_hashmap);
-    error("SYNTAX ", "Unexepected character end of line %zu\n", current_line);
+    printf("SYNTAX: Unexpected character at the end");
+    return false;
   }
+
+  return true;
 }
