@@ -96,16 +96,37 @@ bool compile_to_file(FILE *input, FILE *output) {
   }
 
   // Compile unhandled symbols
+  size_t variable_address = 16;
   while (unhandled_symbols.length != 0) {
     struct symbol *unhandled = array_list_get(unhandled_symbols, 0);
-    const struct compiled_instruction *compiled = hashmap_get(
+    const struct compiled_instruction *compiled_symbol = hashmap_get(
         symbol_hashmap, &(struct compiled_instruction){
                             .original = unhandled->a_or_label_value});
 
     // Compile unhandled symbol
+    const char *compiled;
     fseek(output, unhandled->location, SEEK_SET);
-    if (compiled != NULL)
-      fprintf(output, "%s\n", compiled->compiled);
+    if (compiled_symbol != NULL)
+      compiled = compiled_symbol->compiled;
+    else {
+      // Convert the memory address to binary
+      char *compiled_variable = malloc(sizeof(char) * 16);
+      strcpy(compiled_variable, "");
+      to_binary(compiled_variable, variable_address);
+
+      // Put it inside of the symbol hashmap
+      hashmap_set(symbol_hashmap,
+                  &(struct compiled_instruction){
+                      .original = strdup(unhandled->a_or_label_value),
+                      .compiled = compiled_variable});
+
+      // Compile and update variable address
+      compiled = compiled_variable;
+      variable_address++;
+    }
+
+    // Write to file
+    fprintf(output, "%s\n", compiled);
 
     // Free it/Remove it
     free(unhandled->a_or_label_value);
