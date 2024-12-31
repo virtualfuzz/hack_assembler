@@ -25,9 +25,13 @@ int main(int argc, char **argv) {
   // Finally start compiling
   const bool status = compile_to_file(assembly_file, output_file);
 
-  cleanup(assembly_file, output_file, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+  cleanup(assembly_file, output_file, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+          NULL);
 
-  if (status == true) exit(EXIT_SUCCESS);
+  if (status == true) {
+    printf("Finished compiling file, output file in %s\n", output_filename);
+    exit(EXIT_SUCCESS);
+  }
   exit(EXIT_FAILURE);
 }
 
@@ -74,8 +78,8 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
 
   // If file already exists and we allow overwriting
   if (access(*output_filename, F_OK) != -1 && force == false) {
-    cleanup(assembly_file, NULL, NULL, *output_filename, NULL, NULL, NULL,
-            NULL, NULL, NULL);
+    cleanup(assembly_file, NULL, NULL, *output_filename, NULL, NULL, NULL, NULL,
+            NULL, NULL);
     error("FILE ",
           "%s already exists, use the --force flag to overwrite file\n",
           *output_filename);
