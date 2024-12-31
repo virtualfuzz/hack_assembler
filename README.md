@@ -8,7 +8,7 @@ Made for project 6 of the Nand2Tetris course.
 
 This project is licensed under the [AGPL-3.0-or-later](LICENSE.md).
 
-Hack Assembler that compiles hack assembly to hack machine code  
+Hack Assembler that compiles hack assembly to hack machine code
 Copyright (C) 2024  Jayden295
 
 This program is free software: you can redistribute it and/or modify
@@ -28,6 +28,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 [LICENSE-3RD-PARTY.md](LICENSE-3RD-PARTY.md)
 
-This project uses hashmap.c  
-hashmap.c and all its files inside of the hashmap.c/ and src/hashmap.h
+This project uses hashmap.c
+hashmap.c and all its files inside of the hashmap.c/ and src/compiler/hashmap.h
 are licensed under the MIT license.
+
+This project uses c-array-list
+c-array-list and all its files inside of c-array-list/ and src/compiler/array-list.h
+are licensed under the GPL-3.0-or-later.
