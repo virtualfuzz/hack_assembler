@@ -78,10 +78,10 @@ void open_compiled_file(FILE *assembly_file, const char *source_filename,
 
   // If file already exists and we allow overwriting
   if (access(*output_filename, F_OK) != -1 && force == false) {
-    cleanup(assembly_file, NULL, NULL, *output_filename, NULL, NULL, NULL, NULL,
+    cleanup(assembly_file, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
             NULL, NULL);
     error("FILE ",
-          "%s already exists, use the --force flag to overwrite file\n",
+          "%s already exists, use the --force flag to overwrite file",
           *output_filename);
   }
 

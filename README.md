@@ -1,6 +1,6 @@
 # Hack Assembler
 
-v1.0.0
+v1.0.1
 
 Compiles hack assembly language to hack machine code.
 
