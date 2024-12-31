@@ -13,10 +13,10 @@ and run the hack_assembler file.
 
 Usage: hack_assembler [OPTIONS] [-i file]
 
-Options:
--f --force Allow overwriting file
--i --input Source hack file
--o --output Output hack file
+Options:\
+-f --force Allow overwriting file\
+-i --input Source hack file\
+-o --output Output hack file\
 Creates a file named foo.hack that can be executed on the Hack computer.
 
 ## Compiling
