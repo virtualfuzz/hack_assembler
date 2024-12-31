@@ -20,7 +20,7 @@ compile_dynamic_libraries: create_builds_dir
 	cd c-array-list && make
 	cd builds && ln -sf ../c-array-list/builds/libarraylist.so libarraylist.so
 
-test: release src/hack_assembler.c test/asm/Add.asm
+test: create_tests_dir release src/hack_assembler.c test/asm/Add.asm
 	echo "Starting tests..."
 	@for entry in ./test/asm/*; do \
 		filename="$${entry##*/}"; \
@@ -36,4 +36,9 @@ clean:
 create_builds_dir:
 	@if [ ! -d "builds" ]; then\
         mkdir builds;\
+    fi
+
+create_tests_dir:
+	@if [ ! -d "test/to_compare" ]; then\
+        mkdir test/to_compare;\
     fi
