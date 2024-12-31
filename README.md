@@ -4,7 +4,7 @@ v1.0.0
 
 Compiles hack assembly language to hack machine code.
 
-Made for project 6 of the Nand2Tetris course.
+Made for project 6 of the Nand2Tetris course and also to learn C.
 
 ## Usage
 
