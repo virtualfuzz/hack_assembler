@@ -33,7 +33,7 @@ This project uses c-array-list
 c-array-list and all its files inside of c-array-list/ and src/compiler/array-list.h
 are licensed under the GPL-3.0-or-later.
 
-Copyright (C) 2024 Jayden295
+Copyright (C) 2024 virtualfuzz
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software

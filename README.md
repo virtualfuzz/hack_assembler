@@ -8,7 +8,7 @@ Made for project 6 of the Nand2Tetris course and also to learn C.
 
 ## Usage
 
-[Download the latest release](https://codeberg.org/Jayden295/Hack_Assembler/releases)
+[Download the latest release](https://codeberg.org/virtualfuzz/Hack_Assembler/releases)
 and run the hack_assembler file.
 
 Usage: hack_assembler [OPTIONS] [-i file]
@@ -92,7 +92,7 @@ and `compile_instruction` (compiles one instruction/one line for stage 1).\
 This project is licensed under the [AGPL-3.0-or-later](LICENSE.md).
 
 Hack Assembler that compiles hack assembly to hack machine code
-Copyright (C) 2024 Jayden295
+Copyright (C) 2024 virtualfuzz
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as

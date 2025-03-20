@@ -3,4 +3,4 @@
 	url = git@github.com:tidwall/hashmap.c.git
 [submodule "c-array-list"]
 	path = c-array-list
-	url = git@codeberg.org:Jayden295/c-array-list.git
+	url = git@codeberg.org:virtualfuzz/c-array-list.git
